@@ -1,6 +1,6 @@
-﻿import pandas as pd
+import pandas as pd
 from data_loader import load_data
-from metrics import TEAMS, build_portfolio, filter_team, in_target, weighted_irr, risk_kpis, portfolio_kpis
+from dashboard_metrics import TEAMS, build_portfolio, filter_team, in_target, weighted_irr, risk_kpis, portfolio_kpis
 
 raw = load_data.__wrapped__() if hasattr(load_data, "__wrapped__") else load_data()
 today = pd.Timestamp("2026-06-05")
@@ -24,6 +24,6 @@ print("Pankit KPIs: OB", round(k["total_ob"]/1e6,2), "M | Fac", round(k["total_f
 assert (pan["util_denom"] == pan["facility"]).all(), "Pankit denom wrong"
 assert (nik["util_denom"] == nik["total_facility"]).all(), "Nikhil denom wrong"
 # Non-Workable must NOT pass the workable predicate
-from metrics import is_workable
+from dashboard_metrics import is_workable
 assert not is_workable(pan[pan["raw_status"]=="Non-Workable"]).any()
 print("ASSERTIONS OK")

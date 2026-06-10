@@ -1,4 +1,4 @@
-﻿import warnings; warnings.filterwarnings("ignore")
+import warnings; warnings.filterwarnings("ignore")
 from streamlit.testing.v1 import AppTest
 
 NIKHIL_VIEWS = ["Snapshot", "Portfolio", "Team", "Health", "Actions", "Account Pulse", "Peak", "CP Health", "Tracker"]

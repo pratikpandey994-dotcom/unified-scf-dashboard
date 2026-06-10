@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from metrics import (
+from dashboard_metrics import (
     CURRENT_OB_CUTOFF,
     EXCLUDED_STAGES,
     IN_TARGET_TYPES,

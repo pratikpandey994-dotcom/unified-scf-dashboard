@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from metrics import (
+from dashboard_metrics import (
     PANKIT_AM_COLORS,
     get_window,
     is_workable,

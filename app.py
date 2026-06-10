@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from data_loader import DEFAULT_FILES, load_data, load_demo_data
-from metrics import TEAMS, apply_filters, build_portfolio, filter_team
+from dashboard_metrics import TEAMS, apply_filters, build_portfolio, filter_team
 import views_nikhil
 import views_pankit
 import views_referral
