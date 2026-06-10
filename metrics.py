@@ -10,9 +10,24 @@ import pandas as pd
 NIKHIL_AMS = ["Nikhil Shetty", "Darshan Hublikar", "Deepsayan Dam", "Ashitha Nair", "Asif Ali"]
 PANKIT_AMS = ["Pankit Shah", "Sonal Mishra", "Pejush Hal", "Kaustav Das"]
 
+# AM colors from the original dashboards (index-paired for Nikhil, named for Pankit).
+NIKHIL_AM_COLORS = dict(zip(NIKHIL_AMS, ["#f59e0b", "#10b981", "#6366f1", "#f97316", "#94a3b8"]))
+PANKIT_AM_COLORS = {
+    "Kaustav Das": "#3b82f6",
+    "Pejush Hal": "#8b5cf6",
+    "Sonal Mishra": "#f59e0b",
+    "Pankit Shah": "#10b981",
+}
+
 SETTLED = {"closed", "paid", "received"}
 REPAYMENT_STAGES = SETTLED | {"partial"}
 OPEN_STAGES = {"advanced", "overdue", "npa", "partial"}
+EXCLUDED_STAGES = {"partadvanced", "processing", "deposit_pending", "pending_advance", "data_entry", "verify_bank_details", "hold"}
+
+IN_TARGET_TYPES = {"Active Workable", "Suspended Workable"}
+
+# Historical OB file covers dates before this cutoff; the current OB file covers dates on/after it.
+CURRENT_OB_CUTOFF = pd.Timestamp("2026-05-01")
 
 
 @dataclass(frozen=True)
@@ -20,7 +35,8 @@ class TeamConfig:
     label: str
     leader: str
     ams: list[str]
-    segment: str
+    scope: str  # "am_only" (Nikhil pod rule) or "direct" (AM list + Partner == Direct)
+    include_overdraft: bool  # utilization / 75% denominator includes overdraft?
 
 
 TEAMS = {
@@ -28,13 +44,15 @@ TEAMS = {
         label="Team Nikhil",
         leader="Nikhil Shetty",
         ams=NIKHIL_AMS,
-        segment="cp_partner",
+        scope="am_only",
+        include_overdraft=True,
     ),
     "Team Pankit": TeamConfig(
         label="Team Pankit",
         leader="Pankit Shah",
         ams=PANKIT_AMS,
-        segment="direct",
+        scope="direct",
+        include_overdraft=False,
     ),
 }
 
@@ -56,18 +74,38 @@ def _classify_level(broad_status: str, utilization_status: str, days_since: floa
     return "Suspended Workable"
 
 
-def _partner_segment(partner: str) -> str:
-    normalized = str(partner or "").strip().casefold()
-    return "direct" if normalized in {"", "direct", "nan", "none"} else "cp_partner"
+def get_window(kind: str, today: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Date windows as defined in the original HTML (weeks run Monday-Sunday)."""
+    today = pd.Timestamp(today).normalize()
+    if kind == "mtd":
+        return today.replace(day=1), today
+    if kind == "qtd":
+        quarter_month = (today.month - 1) // 3 * 3 + 1
+        return today.replace(month=quarter_month, day=1), today
+    if kind == "cw":
+        monday = today - timedelta(days=today.dayofweek)
+        return monday, monday + timedelta(days=6)
+    if kind == "nw":
+        monday = today - timedelta(days=today.dayofweek) + timedelta(days=7)
+        return monday, monday + timedelta(days=6)
+    if kind == "cm":
+        start = today.replace(day=1)
+        return start, start + pd.offsets.MonthEnd(0)
+    if kind == "nm":
+        start = today.replace(day=1) + pd.offsets.MonthBegin(1)
+        return start, start + pd.offsets.MonthEnd(0)
+    raise ValueError(f"Unknown window: {kind}")
 
 
-def _closest_ob(ob_pivot: pd.DataFrame, account_id: str, target_date: pd.Timestamp) -> float:
-    if ob_pivot.empty or account_id not in ob_pivot.columns:
-        return 0.0
-    candidates = [idx for idx in ob_pivot.index if pd.Timestamp(idx) <= target_date]
-    if not candidates:
-        return 0.0
-    return float(ob_pivot.loc[max(candidates), account_id])
+def _snapshot_on_or_before(ob_pivot: pd.DataFrame, target: pd.Timestamp) -> pd.Series:
+    """OB per account on the latest pivot date <= target (empty Series when none)."""
+    if ob_pivot.empty:
+        return pd.Series(dtype=float)
+    idx = ob_pivot.index
+    pos = idx.searchsorted(pd.Timestamp(target), side="right") - 1
+    if pos < 0:
+        return pd.Series(dtype=float)
+    return ob_pivot.iloc[pos]
 
 
 def build_portfolio(
@@ -98,11 +136,12 @@ def build_portfolio(
         overdraft = float(_first_valid(v1_row.get("overdraft_limit"), row.get("Overdraft_Limit"), 0) or 0)
         total_facility = facility + overdraft
         ob = float(_first_valid(v1_row.get("Outstanding_Balance"), row.get("OB"), 0) or 0)
+        ob = max(ob, 0.0)  # master/OB extracts contain tiny negative float residues
         irr = float(_first_valid(v1_row.get("Signed-up IRR"), row.get("Signed_up_IRR"), 0) or 0)
-        utilization = ob / total_facility if total_facility > 0 else 0
 
         partner = str(row.get("Partner", "") or "").strip()
-        level = _classify_level(row.get("Broad_Account_Status", ""), v1_row.get("utilization_status", ""), days_since)
+        v1_util_status = str(v1_row.get("utilization_status", "") or "").strip().casefold()
+        level = _classify_level(row.get("Broad_Account_Status", ""), v1_util_status, days_since)
         rows.append(
             {
                 "id": account_id,
@@ -110,19 +149,16 @@ def build_portfolio(
                 "buyer_lower": str(row["Buyer"]).casefold(),
                 "am": am,
                 "partner": partner,
-                "partner_segment": _partner_segment(partner),
-                "team": row.get("Team", ""),
+                "team": str(row.get("Team", "") or "").strip(),
                 "raw_status": row.get("Account_Status", ""),
-                "broad_status": row.get("Broad_Account_Status", ""),
+                "broad_status": str(row.get("Broad_Account_Status", "") or "").strip(),
+                "util_status": v1_util_status,
                 "account_type": level,
                 "facility": facility,
                 "overdraft": overdraft,
                 "total_facility": total_facility,
                 "ob": ob,
                 "irr": irr,
-                "utilization": utilization,
-                "target_ob_75": total_facility * 0.75,
-                "gap_to_75": max(total_facility * 0.75 - ob, 0),
                 "first_disbursed": first_disb,
                 "last_disbursed": last_disb,
                 "days_since_last": days_since,
@@ -138,51 +174,105 @@ def build_portfolio(
     if not ob_history.empty:
         ob_subset = ob_history[ob_history["importer_user_id"].isin(account_ids)].copy()
         if not ob_subset.empty:
-            ob_subset["date_key"] = ob_subset["ob_date"].dt.date
+            ob_subset["ob"] = ob_subset["ob"].clip(lower=0)
+            ob_subset["date_key"] = ob_subset["ob_date"].dt.normalize()
             ob_pivot = ob_subset.groupby(["date_key", "importer_user_id"])["ob"].last().unstack(fill_value=0)
+            ob_pivot = ob_pivot.sort_index()
             accounts["peak_ob"] = accounts["id"].map(ob_pivot.max(axis=0)).fillna(0)
+            accounts["peak_ob_date"] = accounts["id"].map(ob_pivot.idxmax(axis=0))
             accounts["avg_ob"] = accounts["id"].map(ob_pivot.replace(0, np.nan).mean(axis=0)).fillna(0)
-            accounts["ob_30d"] = accounts["id"].apply(lambda account_id: _closest_ob(ob_pivot, account_id, today - timedelta(days=30)))
-            accounts["ob_90d"] = accounts["id"].apply(lambda account_id: _closest_ob(ob_pivot, account_id, today - timedelta(days=90)))
+            snap_30 = _snapshot_on_or_before(ob_pivot, today - timedelta(days=30))
+            snap_90 = _snapshot_on_or_before(ob_pivot, today - timedelta(days=90))
+            accounts["ob_30d"] = accounts["id"].map(snap_30).fillna(0)
+            accounts["ob_90d"] = accounts["id"].map(snap_90).fillna(0)
         else:
-            accounts[["peak_ob", "avg_ob", "ob_30d", "ob_90d"]] = 0
+            accounts[["peak_ob", "avg_ob", "ob_30d", "ob_90d"]] = 0.0
+            accounts["peak_ob_date"] = pd.NaT
     else:
-        accounts[["peak_ob", "avg_ob", "ob_30d", "ob_90d"]] = 0
+        accounts[["peak_ob", "avg_ob", "ob_30d", "ob_90d"]] = 0.0
+        accounts["peak_ob_date"] = pd.NaT
 
     accounts["ob_dent_30d"] = accounts["ob_30d"] - accounts["ob"]
     accounts["ob_dent_90d"] = accounts["ob_90d"] - accounts["ob"]
     accounts["ob_dent_30d_pct"] = np.where(accounts["ob_30d"] > 0, accounts["ob_dent_30d"] / accounts["ob_30d"], 0)
-    accounts["utilization_pct"] = accounts["utilization"] * 100
     accounts["ob_dent_30d_pct_display"] = accounts["ob_dent_30d_pct"] * 100
 
     invoice_lookup = accounts.drop_duplicates("buyer_lower", keep="first")
-    invoice_map = invoice_lookup.set_index("buyer_lower")[["id", "am", "account_type", "partner_segment"]].to_dict("index")
+    invoice_map = invoice_lookup.set_index("buyer_lower")[["id", "am", "account_type"]].to_dict("index")
     invoices = view2[view2["buyer_lower"].isin(invoice_map)].copy()
     invoices["account_id"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["id"])
     invoices["am"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["am"])
     invoices["account_type"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["account_type"])
-    invoices["partner_segment"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["partner_segment"])
 
-    month_start = pd.Timestamp(today.year, today.month, 1)
-    mtd_repayments = invoices[
-        invoices["Stage"].isin(REPAYMENT_STAGES)
-        & invoices["settlement_date"].notna()
-        & invoices["settlement_date"].between(month_start, today)
-    ].copy()
-    if not mtd_repayments.empty:
-        mtd_repayments["repayment_amount"] = (mtd_repayments["Origination"] - mtd_repayments["Outstanding"]).clip(lower=0)
-        by_account = mtd_repayments.groupby("account_id")["repayment_amount"].sum()
-    else:
-        by_account = pd.Series(dtype=float)
-    accounts["mtd_repayments"] = accounts["id"].map(by_account).fillna(0)
+    month_start, _ = get_window("mtd", today)
+    accounts["mtd_repayments"] = accounts["id"].map(repayments_by_account(invoices, month_start, today)).fillna(0)
     accounts["net_ob"] = accounts["ob"] - accounts["mtd_repayments"]
 
     return accounts, invoices, ob_pivot
 
 
+def repayments_by_account(invoices: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    """Principal repaid per account: max(0, Origination - Outstanding) on settled/partial invoices settled in window."""
+    if invoices.empty:
+        return pd.Series(dtype=float)
+    settled = invoices[
+        invoices["Stage"].isin(REPAYMENT_STAGES)
+        & invoices["settlement_date"].notna()
+        & invoices["settlement_date"].between(start, end)
+    ].copy()
+    if settled.empty:
+        return pd.Series(dtype=float)
+    settled["repayment_amount"] = (settled["Origination"] - settled["Outstanding"]).clip(lower=0)
+    return settled.groupby("account_id")["repayment_amount"].sum()
+
+
+def originations_by_account(invoices: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    """Origination per account for invoices disbursed in window (EXCLUDED stages skipped, per the HTML OVR rule)."""
+    if invoices.empty:
+        return pd.Series(dtype=float)
+    window = invoices[
+        ~invoices["Stage"].isin(EXCLUDED_STAGES)
+        & invoices["disbursed_date"].notna()
+        & invoices["disbursed_date"].between(start, end)
+    ]
+    if window.empty:
+        return pd.Series(dtype=float)
+    return window.groupby("account_id")["Origination"].sum()
+
+
+def due_by_account(invoices: pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp) -> pd.Series:
+    """Outstanding due per account: advanced/partial invoices with due date in window."""
+    if invoices.empty:
+        return pd.Series(dtype=float)
+    due = invoices[
+        invoices["Stage"].isin({"advanced", "partial"})
+        & invoices["due_date_of_invoice"].notna()
+        & invoices["due_date_of_invoice"].between(start, end)
+    ]
+    if due.empty:
+        return pd.Series(dtype=float)
+    return due.groupby("account_id")["Outstanding"].sum()
+
+
 def filter_team(accounts: pd.DataFrame, team_name: str) -> pd.DataFrame:
+    """Team segmentation per the original dashboards (decisions 2026-06-10):
+    - Team Nikhil: account's AM in the pod AM list. No partner filter (HTML pod rule).
+    - Team Pankit: account's AM in the team AM list AND Partner == 'Direct'.
+    Then recompute utilization/75% columns with the team's denominator
+    (Nikhil: facility + overdraft, Pankit: facility only)."""
     cfg = TEAMS[team_name]
-    return accounts[(accounts["partner_segment"] == cfg.segment) & (accounts["am"].isin(cfg.ams))].copy()
+    filtered = accounts[accounts["am"].isin(cfg.ams)]
+    if cfg.scope == "direct":
+        filtered = filtered[filtered["partner"].str.casefold() == "direct"]
+    filtered = filtered.copy()
+
+    denom = filtered["total_facility"] if cfg.include_overdraft else filtered["facility"]
+    filtered["util_denom"] = denom
+    filtered["utilization"] = np.where(denom > 0, filtered["ob"] / denom, 0.0)
+    filtered["utilization_pct"] = filtered["utilization"] * 100
+    filtered["target_ob_75"] = denom * 0.75
+    filtered["gap_to_75"] = (filtered["target_ob_75"] - filtered["ob"]).clip(lower=0)
+    return filtered
 
 
 def apply_filters(
@@ -201,18 +291,61 @@ def apply_filters(
     return filtered
 
 
-def weighted_irr(accounts: pd.DataFrame) -> float | None:
-    total_ob = accounts["ob"].sum()
+def in_target(accounts: pd.DataFrame) -> pd.DataFrame:
+    """Nikhil's 'in target' universe: Active Workable + Suspended Workable."""
+    return accounts[accounts["account_type"].isin(IN_TARGET_TYPES)]
+
+
+def is_workable(accounts: pd.DataFrame) -> pd.Series:
+    """Pankit's workable predicate: status starts with 'Workable' (excludes 'Non-Workable')."""
+    return accounts["raw_status"].astype(str).str.startswith("Workable")
+
+
+def weighted_irr(accounts: pd.DataFrame, min_ob: float = 0) -> float | None:
+    """OB-weighted signed-up IRR over accounts with ob >= min_ob; None when no OB."""
+    eligible = accounts[accounts["ob"] >= min_ob] if min_ob > 0 else accounts
+    total_ob = eligible["ob"].sum()
     if total_ob <= 0:
         return None
-    return float((accounts["irr"] * accounts["ob"]).sum() / total_ob)
+    return float((eligible["irr"] * eligible["ob"]).sum() / total_ob)
+
+
+def risk_kpis(target_accounts: pd.DataFrame, invoices: pd.DataFrame) -> dict:
+    """Overdue (DPD 8-90), NPA (DPD>90) outstanding over OPEN-stage invoices, and Clean OB."""
+    if invoices.empty:
+        overdue = npa = invoices
+    else:
+        open_inv = invoices[invoices["Stage"].isin(OPEN_STAGES)]
+        overdue = open_inv[(open_inv["dpd"] > 7) & (open_inv["dpd"] <= 90)]
+        npa = open_inv[open_inv["dpd"] > 90]
+    total_ob = target_accounts["ob"].sum()
+    overdue_ob = overdue["Outstanding"].sum() if not overdue.empty else 0.0
+    npa_ob = npa["Outstanding"].sum() if not npa.empty else 0.0
+    clean_ob = max(0.0, total_ob - overdue_ob - npa_ob)
+    return {
+        "overdue_ob": overdue_ob,
+        "overdue_count": len(overdue),
+        "npa_ob": npa_ob,
+        "npa_count": len(npa),
+        "clean_ob": clean_ob,
+        "clean_pct": clean_ob / total_ob if total_ob > 0 else 0.0,
+    }
+
+
+def account_risk_category(accounts: pd.DataFrame, invoices: pd.DataFrame) -> pd.Series:
+    """Per-account quality category: npa > overdue > clean (by worst open invoice DPD)."""
+    npa_ids: set = set()
+    overdue_ids: set = set()
+    if not invoices.empty:
+        open_inv = invoices[invoices["Stage"].isin(OPEN_STAGES)]
+        npa_ids = set(open_inv.loc[open_inv["dpd"] > 90, "account_id"])
+        overdue_ids = set(open_inv.loc[(open_inv["dpd"] > 7) & (open_inv["dpd"] <= 90), "account_id"])
+    return accounts["id"].map(lambda i: "npa" if i in npa_ids else ("overdue" if i in overdue_ids else "clean"))
 
 
 def portfolio_kpis(accounts: pd.DataFrame, invoices: pd.DataFrame) -> dict[str, float | int | None]:
-    open_invoices = invoices[invoices["Stage"].isin(OPEN_STAGES)] if not invoices.empty else invoices
-    overdue = open_invoices[(open_invoices["dpd"] > 7) & (open_invoices["dpd"] <= 90)] if not open_invoices.empty else open_invoices
-    npa = open_invoices[open_invoices["dpd"] > 90] if not open_invoices.empty else open_invoices
-    total_facility = accounts["total_facility"].sum()
+    risk = risk_kpis(accounts, invoices)
+    total_facility = accounts["util_denom"].sum() if "util_denom" in accounts else accounts["total_facility"].sum()
     total_ob = accounts["ob"].sum()
     return {
         "accounts": len(accounts),
@@ -221,18 +354,17 @@ def portfolio_kpis(accounts: pd.DataFrame, invoices: pd.DataFrame) -> dict[str, 
         "utilization": total_ob / total_facility if total_facility > 0 else 0,
         "mtd_repayments": accounts["mtd_repayments"].sum() if "mtd_repayments" in accounts else 0,
         "net_ob": accounts["net_ob"].sum() if "net_ob" in accounts else total_ob,
-        "gap_to_75": accounts["gap_to_75"].sum(),
+        "gap_to_75": accounts["gap_to_75"].sum() if "gap_to_75" in accounts else 0,
         "zero_ob": int((accounts["ob"] < 1).sum()),
         "inactive_12m": int(
             (
-                accounts["account_type"].isin(["Suspended Workable", "Workable >365"])
-                | accounts["raw_status"].astype(str).str.contains("Inactive", case=False, na=False)
-            )
-            .where(accounts["days_since_last"].fillna(9999) <= 365, False)
-            .sum()
+                accounts["raw_status"].astype(str).str.contains("Inactive", case=False, na=False)
+                & (accounts["days_since_last"].fillna(9999) <= 365)
+            ).sum()
         ),
-        "overdue_ob": overdue["Outstanding"].sum() if not overdue.empty else 0,
-        "npa_ob": npa["Outstanding"].sum() if not npa.empty else 0,
+        "overdue_ob": risk["overdue_ob"],
+        "npa_ob": risk["npa_ob"],
+        "clean_ob": risk["clean_ob"],
         "wirr": weighted_irr(accounts),
     }
 
@@ -244,7 +376,7 @@ def am_summary(accounts: pd.DataFrame) -> pd.DataFrame:
         accounts.groupby("am", as_index=False)
         .agg(
             accounts=("id", "count"),
-            facility=("total_facility", "sum"),
+            facility=("util_denom", "sum") if "util_denom" in accounts else ("total_facility", "sum"),
             ob=("ob", "sum"),
             repayments=("mtd_repayments", "sum"),
             gap_to_75=("gap_to_75", "sum"),
@@ -256,14 +388,16 @@ def am_summary(accounts: pd.DataFrame) -> pd.DataFrame:
     return grouped
 
 
-def utilization_buckets(accounts: pd.DataFrame) -> pd.DataFrame:
+def utilization_buckets_pankit(accounts: pd.DataFrame) -> pd.DataFrame:
+    """Pankit's 6 histogram buckets (utilization in %)."""
+    util = accounts["utilization"] * 100
     bins = [
-        ("0%", accounts["utilization"] <= 0),
-        ("0-25%", (accounts["utilization"] > 0) & (accounts["utilization"] < 0.25)),
-        ("25-50%", (accounts["utilization"] >= 0.25) & (accounts["utilization"] < 0.50)),
-        ("50-75%", (accounts["utilization"] >= 0.50) & (accounts["utilization"] < 0.75)),
-        ("75-100%", (accounts["utilization"] >= 0.75) & (accounts["utilization"] <= 1)),
-        (">100%", accounts["utilization"] > 1),
+        ("0%", util == 0),
+        ("0-25%", (util > 0) & (util < 25)),
+        ("25-50%", (util >= 25) & (util < 50)),
+        ("50-75%", (util >= 50) & (util < 75)),
+        ("75-100%", (util >= 75) & (util <= 100)),
+        (">100%", util > 100),
     ]
     return pd.DataFrame(
         {"Bucket": label, "Accounts": int(mask.sum()), "OB": accounts.loc[mask, "ob"].sum()}
@@ -271,7 +405,32 @@ def utilization_buckets(accounts: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def ob_trend(ob_pivot: pd.DataFrame, account_ids: set[str]) -> pd.DataFrame:
+def utilization_buckets_nikhil(accounts: pd.DataFrame) -> pd.DataFrame:
+    """Nikhil's View C buckets over in-target accounts (util capped at 1): Zero / 1-40 / 41-74 / 75-100."""
+    util = np.where(accounts["util_denom"] > 0, (accounts["ob"] / accounts["util_denom"]).clip(0, 1), 0)
+    util = pd.Series(util, index=accounts.index)
+    bins = [
+        ("Zero (0%)", util <= 0),
+        ("Low (1-40%)", (util > 0) & (util <= 0.40)),
+        ("Medium (41-74%)", (util > 0.40) & (util <= 0.74)),
+        ("High (75-100%)", util > 0.74),
+    ]
+    return pd.DataFrame(
+        {
+            "Bucket": label,
+            "Accounts": int(mask.sum()),
+            "OB": accounts.loc[mask, "ob"].sum(),
+            "WIRR": weighted_irr(accounts.loc[mask & (accounts["ob"] > 0)]),
+        }
+        for label, mask in bins
+    )
+
+
+# Backward-compatible alias (older code imported `utilization_buckets`).
+utilization_buckets = utilization_buckets_pankit
+
+
+def ob_trend(ob_pivot: pd.DataFrame, account_ids: set) -> pd.DataFrame:
     if ob_pivot.empty or not account_ids:
         return pd.DataFrame(columns=["date", "ob"])
     cols = [col for col in ob_pivot.columns if col in account_ids]
@@ -281,3 +440,45 @@ def ob_trend(ob_pivot: pd.DataFrame, account_ids: set[str]) -> pd.DataFrame:
     trend.columns = ["date", "ob"]
     trend["date"] = pd.to_datetime(trend["date"])
     return trend.sort_values("date")
+
+
+def ob_trend_by_am(ob_pivot: pd.DataFrame, accounts: pd.DataFrame) -> pd.DataFrame:
+    """Long-form per-AM daily OB totals (date, am, ob)."""
+    if ob_pivot.empty or accounts.empty:
+        return pd.DataFrame(columns=["date", "am", "ob"])
+    frames = []
+    for am, group in accounts.groupby("am"):
+        cols = [c for c in ob_pivot.columns if c in set(group["id"])]
+        if not cols:
+            continue
+        series = ob_pivot[cols].sum(axis=1)
+        frames.append(pd.DataFrame({"date": series.index, "am": am, "ob": series.values}))
+    if not frames:
+        return pd.DataFrame(columns=["date", "am", "ob"])
+    return pd.concat(frames, ignore_index=True)
+
+
+def cp_universe(accounts: pd.DataFrame) -> pd.DataFrame:
+    """View G universe: Team == 'CP' and Partner != 'Direct', ALL AMs (ignores team/AM filters)."""
+    cp = accounts[(accounts["team"] == "CP") & (accounts["partner"].str.casefold() != "direct")].copy()
+    cp["util_denom"] = cp["total_facility"]
+    cp["utilization"] = np.where(cp["total_facility"] > 0, (cp["ob"] / cp["total_facility"]).clip(0, 1), 0.0)
+    cp["utilization_pct"] = cp["utilization"] * 100
+    return cp
+
+
+def health_scores(cp_accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Timestamp) -> pd.Series:
+    """Nikhil View G health score /100: 25*util + 25 clean + 25 recent-disb(<=30d) + 25 active-90d."""
+    overdue_ids: set = set()
+    active_90_ids: set = set()
+    if not invoices.empty:
+        open_inv = invoices[invoices["Stage"].isin(OPEN_STAGES)]
+        overdue_ids = set(open_inv.loc[open_inv["dpd"] > 7, "account_id"])
+        cutoff = pd.Timestamp(today) - pd.Timedelta(days=90)
+        active_90_ids = set(invoices.loc[invoices["disbursed_date"].notna() & (invoices["disbursed_date"] >= cutoff), "account_id"])
+    return (
+        cp_accounts["utilization"].clip(0, 1) * 25
+        + cp_accounts["id"].map(lambda i: 0 if i in overdue_ids else 25)
+        + cp_accounts["days_since_last"].map(lambda d: 25 if pd.notna(d) and d <= 30 else 0)
+        + cp_accounts["id"].map(lambda i: 25 if i in active_90_ids else 0)
+    ).round()
