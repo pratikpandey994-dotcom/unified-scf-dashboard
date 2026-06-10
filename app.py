@@ -7,6 +7,7 @@ import plotly.express as px
 import streamlit as st
 
 from data_loader import DEFAULT_FILES, load_data
+from data_loader import load_demo_data
 from metrics import (
     TEAMS,
     am_summary,
@@ -88,9 +89,13 @@ st.caption("Select a team, then view the leader rollup or any individual AM.")
 
 with st.sidebar:
     st.header("Data")
-    use_uploads = st.toggle("Upload files manually", value=False)
+    data_mode = st.radio("Source", ["Real files", "Dummy data"], horizontal=False, key="data_mode")
+    use_demo_data = data_mode == "Dummy data"
+    use_uploads = (not use_demo_data) and st.toggle("Upload files manually", value=False)
     uploads = {}
-    if use_uploads:
+    if use_demo_data:
+        st.info("Demo mode uses synthetic data for testing and UI changes.")
+    elif use_uploads:
         uploads["master_file"] = st.file_uploader("Master data", type=["xlsx", "xls"], key="master_file")
         uploads["view1_file"] = st.file_uploader("View 1", type=["xlsx", "xls"], key="view1_file")
         uploads["view2_file"] = st.file_uploader("View 2", type=["xlsx", "xls"], key="view2_file")
@@ -103,7 +108,7 @@ with st.sidebar:
     today_value = st.date_input("As of date", value=date(2026, 6, 5), key="as_of_date")
 
 try:
-    raw = load_data(**uploads) if use_uploads else load_data()
+    raw = load_demo_data() if use_demo_data else (load_data(**uploads) if use_uploads else load_data())
     accounts_all, invoices_all, ob_pivot = build_portfolio(
         raw["master"],
         raw["view1"],

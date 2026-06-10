@@ -28,6 +28,7 @@ When manual upload is off, the app loads these local files from `C:\Users\Pratik
 - `us_scf___daily_ob_by_accounts_2026-06-03T15_05_48.33250036Z.xlsx`
 
 Manual uploads are available from the sidebar.
+For UI testing, switch the sidebar `Source` to `Dummy data`.
 
 ## Team Logic
 
@@ -52,3 +53,4 @@ Manual uploads are available from the sidebar.
 ## Validation Notes
 
 The available Excel files contain the required Nikhil/SCF source columns. Pankit's original reference file contained precomputed React data, so the unified app derives Pankit's direct-team view from the same master, view 1, view 2, and OB files using the segmentation rules above.
+Dummy mode generates deterministic synthetic CP and Direct portfolios for safe UI and metric testing.

@@ -80,6 +80,10 @@ def build_portfolio(
     rows: list[dict] = []
     today = pd.Timestamp(today)
 
+    if "buyer_lower" not in view2.columns and "Buyer" in view2.columns:
+        view2 = view2.copy()
+        view2["buyer_lower"] = view2["Buyer"].astype(str).str.casefold()
+
     for _, row in master.iterrows():
         account_id = row["Buyer_ID"]
         v1_row = view1.loc[account_id] if account_id in view1.index else pd.Series(dtype=object)
