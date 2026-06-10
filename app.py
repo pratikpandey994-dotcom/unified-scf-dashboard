@@ -10,7 +10,11 @@ from dashboard_metrics import TEAMS, apply_filters, build_portfolio, filter_team
 import views_nikhil
 import views_pankit
 import views_referral
-from ui_helpers import inject_visual_system
+try:
+    from ui_helpers import inject_visual_system
+except Exception:  # pragma: no cover - keep the app booting even on stale deploys
+    def inject_visual_system() -> None:
+        return None
 
 
 st.set_page_config(
