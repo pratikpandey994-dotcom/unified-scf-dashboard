@@ -667,12 +667,12 @@ def render_cp_health(accounts_all: pd.DataFrame, invoices_all: pd.DataFrame, tod
     by_partner["wirr"] = by_partner.index.map(wirrs)
     labels = [p.replace("_", " ") for p in by_partner.head(20).index]
 
-    fig = grouped_bar(labels,
-                      {"Total Facility": (by_partner.head(20)["facility"].tolist(), "rgba(148,163,184,.55)"),
-                       "OB": (by_partner.head(20)["ob"].tolist(), ACCENT_NIKHIL)},
-                      "OB & Facility by Partner (top 20)", orientation="h")
-    fig.update_layout(height=560)
-    st.plotly_chart(fig, use_container_width=True)
+    fig = go.Figure()
+    fig.add_bar(y=labels, x=by_partner.head(20)["facility"].tolist(), name="Total Facility", marker_color="rgba(148,163,184,.55)", orientation="h")
+    fig.add_bar(y=labels, x=by_partner.head(20)["ob"].tolist(), name="OB", marker_color=ACCENT_NIKHIL, marker_opacity=0.85, orientation="h")
+    fig.update_layout(barmode="overlay")
+    fig.update_xaxes(tickprefix="$")
+    st.plotly_chart(base_layout(fig, "OB & Facility by Partner (top 20)", height=560), use_container_width=True)
 
     open_inv = cp_invoices[cp_invoices["Stage"].isin(OPEN_STAGES)].copy()
     if not open_inv.empty:
