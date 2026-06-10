@@ -9,6 +9,7 @@ from data_loader import DEFAULT_FILES, load_data, load_demo_data
 from metrics import TEAMS, apply_filters, build_portfolio, filter_team
 import views_nikhil
 import views_pankit
+import views_referral
 
 
 st.set_page_config(
@@ -109,9 +110,9 @@ else:
 # ---- Navigation: a keyed radio instead of st.tabs so the active view ----
 # ---- survives every rerun (st.tabs resets to the first tab whenever  ----
 # ---- a widget inside a later tab fires).                              ----
-NIKHIL_VIEWS = ["Snapshot", "Portfolio", "Team", "Health", "Actions", "Account Pulse", "Peak", "CP Health", "Tracker"]
+NIKHIL_VIEWS = ["Snapshot", "Portfolio", "Team", "Health", "Actions", "Account Pulse", "Peak", "CP Health", "Tracker", "Referral Tracker"]
 PANKIT_VIEWS = ["Executive", "Account Inventory", "Utilization", "Zero OB", "Workable Inactive",
-                "Repayments", "OB Dent", "AM Performance", "75% Engine", "Opportunity Views"]
+                "Repayments", "OB Dent", "AM Performance", "75% Engine", "Opportunity Views", "Referral Tracker"]
 
 view_options = NIKHIL_VIEWS if team_name == "Team Nikhil" else PANKIT_VIEWS
 view = st.radio("View", view_options, horizontal=True, key=f"{team_name}_nav", label_visibility="collapsed")
@@ -136,6 +137,8 @@ if team_name == "Team Nikhil":
         views_nikhil.render_cp_health(accounts_all, invoices_all, today)
     elif view == "Tracker":
         views_nikhil.render_tracker(team_accounts, team_invoices, today, cfg)
+    elif view == "Referral Tracker":
+        views_referral.render_referral_tracker(cfg)
 else:
     if view == "Executive":
         views_pankit.render_executive(accounts, team_accounts, team_invoices, ob_pivot, cfg)
@@ -157,3 +160,5 @@ else:
         views_pankit.render_75_engine(accounts)
     elif view == "Opportunity Views":
         views_pankit.render_opportunity_views(team_accounts, selected_am, cfg)
+    elif view == "Referral Tracker":
+        views_referral.render_referral_tracker(cfg)

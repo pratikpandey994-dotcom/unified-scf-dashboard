@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -115,3 +116,26 @@ def grouped_bar(categories: list, series: dict[str, tuple[list, str]], title: st
 def donut(labels: list[str], values: list[float], colors: list[str], title: str) -> go.Figure:
     fig = go.Figure(go.Pie(labels=labels, values=values, hole=0.6, marker=dict(colors=colors), textinfo="label+percent"))
     return base_layout(fig, title, height=340)
+
+
+def export_portfolio_report(accounts: pd.DataFrame) -> bytes:
+    total_facility = accounts["util_denom"].sum() if "util_denom" in accounts else accounts["total_facility"].sum()
+    total_ob = accounts["ob"].sum()
+    kpis = {
+        "Accounts": len(accounts),
+        "Total Facility": total_facility,
+        "Total OB": total_ob,
+        "Utilization (%)": (total_ob / total_facility * 100) if total_facility > 0 else 0,
+        "MTD Repayments": accounts["mtd_repayments"].sum() if "mtd_repayments" in accounts else 0,
+    }
+    kpi_df = pd.DataFrame([kpis])
+    
+    raw_cols = ["id", "company", "am", "partner", "account_type", "total_facility", "util_denom", "ob", "utilization_pct", "mtd_repayments"]
+    raw_cols = [c for c in raw_cols if c in accounts.columns]
+    raw_data = accounts[raw_cols].copy()
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        kpi_df.to_excel(writer, sheet_name="KPI Summary", index=False)
+        raw_data.to_excel(writer, sheet_name="Account Data", index=False)
+    return output.getvalue()

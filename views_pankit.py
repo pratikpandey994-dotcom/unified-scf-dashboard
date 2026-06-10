@@ -29,6 +29,7 @@ from ui_helpers import (
     fmt_money,
     fmt_pct,
     show_table,
+    export_portfolio_report,
 )
 
 BUCKET_COLORS = ["#ef4444", "#f97316", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6"]
@@ -85,6 +86,10 @@ def kpi_header(accounts: pd.DataFrame) -> None:
 def render_executive(accounts: pd.DataFrame, accounts_team: pd.DataFrame, invoices_team: pd.DataFrame,
                      ob_pivot: pd.DataFrame, cfg) -> None:
     st.caption("Executive view is leader-level: it uses the whole division regardless of the AM/status filters (matches the original).")
+    
+    excel_data = export_portfolio_report(accounts_team)
+    st.download_button(label="📥 Export Portfolio Report (Excel)", data=excel_data, file_name="pankit_portfolio_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    
     kpi_header(accounts_team)
 
     c1, c2 = st.columns(2)

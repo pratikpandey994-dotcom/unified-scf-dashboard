@@ -49,6 +49,7 @@ from ui_helpers import (
     fmt_pct,
     grouped_bar,
     show_table,
+    export_portfolio_report,
 )
 
 TRACKER_PATH = Path(__file__).parent / "tracker_state.json"
@@ -118,6 +119,8 @@ def render_portfolio(accounts: pd.DataFrame, invoices: pd.DataFrame, invoices_te
     risk = risk_kpis(target, invoices)
 
     st.markdown("#### Portfolio Quality")
+    excel_data = export_portfolio_report(target)
+    st.download_button(label="📥 Export Portfolio Report (Excel)", data=excel_data, file_name="nikhil_portfolio_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     c1, c2 = st.columns([1, 1.4])
     with c1:
         st.metric("Clean OB", fmt_money(risk["clean_ob"]), fmt_pct(risk["clean_pct"]) + " of portfolio", delta_color="off")
