@@ -1,6 +1,6 @@
-# Unified SCF Portfolio Dashboard
+# Portfolio Dashboard
 
-This app consolidates Nikhil's CP account view and Pankit's direct-sales view into one Streamlit dashboard.
+This app consolidates Team Nikhil's CP account view and Team Pankit's direct-sales view into one Streamlit dashboard.
 
 ## Run
 
@@ -32,9 +32,9 @@ For UI testing, switch the sidebar `Source` to `Dummy data`.
 
 ## Team Logic
 
-- Nikhil CP Team: partner-backed CP accounts, excluding direct partner accounts, for Nikhil's AM list.
-- Pankit Direct Team: non-partner/direct accounts for Pankit's AM list.
-- Users first select the team, then select `All team AMs` or one AM.
+- Team Nikhil: partner-backed CP accounts, excluding direct partner accounts, for Nikhil's AM list.
+- Team Pankit: non-partner/direct accounts for Pankit's AM list.
+- Users first select the division, then select `All Account Managers` or one AM.
 - Account type and raw status filters are exposed as multiselects.
 
 ## Metric Rules
@@ -52,5 +52,5 @@ For UI testing, switch the sidebar `Source` to `Dummy data`.
 
 ## Validation Notes
 
-The available Excel files contain the required Nikhil/SCF source columns. Pankit's original reference file contained precomputed React data, so the unified app derives Pankit's direct-team view from the same master, view 1, view 2, and OB files using the segmentation rules above.
+The available Excel files contain the required Nikhil/SCF source columns. Pankit's original reference file contained precomputed React data, so the unified app derives Team Pankit's direct-team view from the same master, view 1, view 2, and OB files using the segmentation rules above.
 Dummy mode generates deterministic synthetic CP and Direct portfolios for safe UI and metric testing.

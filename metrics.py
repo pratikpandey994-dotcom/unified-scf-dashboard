@@ -24,14 +24,14 @@ class TeamConfig:
 
 
 TEAMS = {
-    "Nikhil CP Team": TeamConfig(
-        label="Nikhil CP Team",
+    "Team Nikhil": TeamConfig(
+        label="Team Nikhil",
         leader="Nikhil Shetty",
         ams=NIKHIL_AMS,
         segment="cp_partner",
     ),
-    "Pankit Direct Team": TeamConfig(
-        label="Pankit Direct Team",
+    "Team Pankit": TeamConfig(
+        label="Team Pankit",
         leader="Pankit Shah",
         ams=PANKIT_AMS,
         segment="direct",
