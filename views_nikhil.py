@@ -48,6 +48,8 @@ from ui_helpers import (
     fmt_money,
     fmt_pct,
     grouped_bar,
+    metric_cards,
+    section_header,
     show_table,
     export_portfolio_report,
 )
@@ -109,6 +111,66 @@ def render_snapshot(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
     c[1].metric("NPA OB (DPD >90)", fmt_money(risk["npa_ob"]), f"{risk['npa_count']} invoices", delta_color="off")
     c[2].metric("Clean OB", fmt_money(risk["clean_ob"]))
     c[3].metric("Clean %", fmt_pct(risk["clean_pct"]))
+
+
+# Polished light-theme replica of the original snapshot tile structure. This
+# intentionally overrides the first direct port above while preserving formulas.
+def render_snapshot(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
+    target = in_target(accounts)
+    total_ob = target["ob"].sum()
+    total_fac = target["util_denom"].sum()
+
+    section_header("Portfolio Scale", "In-target Active + Suspended Workable accounts")
+    wa_count = int((accounts["broad_status"] == "Workable").sum())
+    metric_cards(
+        [
+            ("Total OB", fmt_money(total_ob), "", ACCENT_NIKHIL),
+            ("Total Facility", fmt_money(total_fac), "Facility + overdraft", INDIGO),
+            ("Portfolio Utilization", fmt_pct(total_ob / total_fac if total_fac > 0 else 0), "", POSITIVE),
+            ("Total Accounts", f"{len(accounts):,}", f"{wa_count} Workable / {len(accounts) - wa_count} NWA", MUTED),
+        ],
+        columns=4,
+    )
+
+    section_header("Account Health", "Original six-tile CP pod split")
+    days = accounts["days_since_last"].fillna(99999)
+    tile_specs = [
+        ("Active Workable / IN TARGET", accounts["account_type"] == "Active Workable", POSITIVE),
+        ("Suspended Workable / IN TARGET", accounts["account_type"] == "Suspended Workable", WARNING),
+        ("Workable >365d / EXCL.", accounts["account_type"] == "Workable >365", MUTED),
+        ("Non-Workable", accounts["account_type"] == "NWA", MUTED),
+        ("NW >365d", (accounts["account_type"] == "NWA") & (days > 365), MUTED),
+        ("NW <=365d", (accounts["account_type"] == "NWA") & (days <= 365), MUTED),
+    ]
+    health_cards = []
+    for label, mask, color in tile_specs:
+        subset = accounts[mask]
+        health_cards.append(
+            (label, f"{len(subset):,}", f"{fmt_money(subset['ob'].sum())} OB / {fmt_money(subset['util_denom'].sum())} Fac", color)
+        )
+    metric_cards(health_cards, columns=3)
+
+    section_header("Yield", "OB-weighted signed-up IRR")
+    metric_cards(
+        [
+            ("Portfolio WIRR", fmt_irr(weighted_irr(target)), "In target", ACCENT_NIKHIL),
+            ("Active WIRR", fmt_irr(weighted_irr(target[target["account_type"] == "Active Workable"])), "", POSITIVE),
+            ("Suspended WIRR", fmt_irr(weighted_irr(target[target["account_type"] == "Suspended Workable"])), "", WARNING),
+        ],
+        columns=3,
+    )
+
+    section_header("Risk", "DPD 8-90 overdue and DPD >90 NPA")
+    risk = risk_kpis(target, invoices)
+    metric_cards(
+        [
+            ("Overdue OB (DPD 8-90)", fmt_money(risk["overdue_ob"]), f"{risk['overdue_count']} invoices", WARNING),
+            ("NPA OB (DPD >90)", fmt_money(risk["npa_ob"]), f"{risk['npa_count']} invoices", NEGATIVE),
+            ("Clean OB", fmt_money(risk["clean_ob"]), "", POSITIVE),
+            ("Clean %", fmt_pct(risk["clean_pct"]), "", POSITIVE),
+        ],
+        columns=4,
+    )
 
 
 # ---------------------------------------------------------------- View A ----

@@ -13,6 +13,265 @@ ACCENT_NIKHIL = "#f59e0b"
 ACCENT_PANKIT = "#0284c7"
 INDIGO = "#6366f1"
 MUTED = "#64748b"
+SURFACE = "#ffffff"
+BORDER = "#d1d5db"
+SUBTLE_BORDER = "#e5e7eb"
+PANEL_BG = "#ffffff"
+PAGE_BG = "#f9fafb"
+TEXT = "#111827"
+TEXT_MUTED = "#6b7280"
+
+
+def inject_visual_system() -> None:
+    """Light-theme replica of the source dashboard component system."""
+    st.markdown(
+        """
+<style>
+:root {
+  --scf-bg: #f9fafb;
+  --scf-card: #ffffff;
+  --scf-card-soft: #f8fafc;
+  --scf-border: #d1d5db;
+  --scf-border-soft: #e5e7eb;
+  --scf-text: #111827;
+  --scf-muted: #6b7280;
+  --scf-faint: #9ca3af;
+  --scf-green: #10b981;
+  --scf-red: #ef4444;
+  --scf-orange: #f97316;
+  --scf-amber: #f59e0b;
+  --scf-blue: #0284c7;
+  --scf-indigo: #6366f1;
+}
+.block-container,
+[data-testid="stMainBlockContainer"] {
+  max-width: 1440px;
+  padding: 2.1rem 2rem 3rem;
+}
+[data-testid="stSidebar"] {
+  border-right: 1px solid var(--scf-border-soft);
+}
+h1 {
+  font-size: 2rem !important;
+  line-height: 1.12 !important;
+  letter-spacing: 0 !important;
+  margin-bottom: .35rem !important;
+}
+h2, h3, h4 {
+  color: var(--scf-text) !important;
+  letter-spacing: 0 !important;
+}
+h4, h5 {
+  margin-top: 1.4rem !important;
+  padding-bottom: .48rem !important;
+  border-bottom: 1px solid var(--scf-border-soft) !important;
+  font-size: .78rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  color: #374151 !important;
+}
+[data-testid="stMetric"] {
+  background: var(--scf-card);
+  border: 1px solid var(--scf-border-soft);
+  border-left: 3px solid var(--scf-blue);
+  border-radius: 8px;
+  padding: 14px 16px;
+  min-height: 96px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+[data-testid="stMetricLabel"] {
+  color: var(--scf-muted);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+[data-testid="stMetricValue"] {
+  color: var(--scf-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 1.36rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+[data-testid="stMetricDelta"] {
+  color: var(--scf-muted);
+  font-size: .72rem;
+}
+div[data-testid="stHorizontalBlock"] {
+  gap: .88rem;
+}
+.stPlotlyChart {
+  background: var(--scf-card);
+  border: 1px solid var(--scf-border-soft);
+  border-radius: 8px;
+  padding: 10px 12px 2px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+[data-testid="stDataFrame"] {
+  border: 1px solid var(--scf-border-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+div[role="radiogroup"] {
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+div[role="radiogroup"] label {
+  background: var(--scf-card);
+  border: 1px solid var(--scf-border-soft);
+  border-radius: 999px;
+  padding: .26rem .72rem;
+  min-height: 2rem;
+}
+div[role="radiogroup"] label:has(input:checked) {
+  border-color: var(--scf-blue);
+  background: #eff6ff;
+  color: #075985;
+  font-weight: 700;
+}
+div[data-baseweb="select"] > div,
+div[data-baseweb="input"] > div {
+  border-radius: 8px;
+}
+.stButton > button,
+[data-testid="stDownloadButton"] button {
+  border: 1px solid var(--scf-border-soft);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #374151;
+  font-weight: 750;
+  padding: .42rem .86rem;
+  min-height: 2.25rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.stButton > button:hover,
+[data-testid="stDownloadButton"] button:hover {
+  border-color: var(--scf-blue);
+  color: #075985;
+  background: #eff6ff;
+}
+.scf-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin: 1.35rem 0 .8rem;
+  padding-bottom: .52rem;
+  border-bottom: 1px solid var(--scf-border-soft);
+}
+.scf-section-title {
+  font-size: .76rem;
+  font-weight: 850;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #374151;
+}
+.scf-section-sub {
+  color: var(--scf-muted);
+  font-size: .78rem;
+}
+.scf-card {
+  background: var(--scf-card);
+  border: 1px solid var(--scf-border-soft);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.scf-kpi {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--scf-border-soft);
+  border-left: 3px solid var(--accent, #0284c7);
+  border-radius: 8px;
+  padding: 15px 17px;
+  min-height: 104px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.scf-kpi-label {
+  color: var(--scf-muted);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  margin-bottom: .38rem;
+}
+.scf-kpi-value {
+  color: var(--accent, #111827);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 1.42rem;
+  font-weight: 850;
+  line-height: 1.15;
+}
+.scf-kpi-sub {
+  color: var(--scf-muted);
+  font-size: .72rem;
+  margin-top: .42rem;
+}
+.scf-chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: .68rem;
+  font-weight: 750;
+  margin: 0 6px 6px 0;
+}
+.scf-chip-blue { background:#dbeafe; color:#1e40af; }
+.scf-chip-red { background:#fee2e2; color:#991b1b; }
+.scf-chip-amber { background:#fffbeb; color:#92400e; }
+.scf-chip-green { background:#d1fae5; color:#065f46; }
+.scf-path-row {
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin: .25rem 0 .65rem;
+}
+.scf-path-label {
+  color: var(--scf-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+  margin-right: .1rem;
+  align-self: center;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def section_header(title: str, subtitle: str = "") -> None:
+    sub = f'<span class="scf-section-sub">{subtitle}</span>' if subtitle else ""
+    st.markdown(
+        f'<div class="scf-section"><span class="scf-section-title">{title}</span>{sub}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def metric_card(label: str, value: str, sub: str = "", color: str = ACCENT_PANKIT) -> str:
+    sub_html = f'<div class="scf-kpi-sub">{sub}</div>' if sub else ""
+    return (
+        f'<div class="scf-kpi" style="--accent:{color}">'
+        f'<div class="scf-kpi-label">{label}</div>'
+        f'<div class="scf-kpi-value">{value}</div>'
+        f'{sub_html}</div>'
+    )
+
+
+def metric_cards(items: list[tuple[str, str, str, str]], columns: int | None = None) -> None:
+    if not items:
+        return
+    columns = columns or min(len(items), 5)
+    for start in range(0, len(items), columns):
+        cols = st.columns(columns)
+        for col, item in zip(cols, items[start : start + columns]):
+            label, value, sub, color = item
+            col.markdown(metric_card(label, value, sub, color), unsafe_allow_html=True)
+
+
+def chip(text: str, variant: str = "blue") -> str:
+    return f'<span class="scf-chip scf-chip-{variant}">{text}</span>'
 
 
 def fmt_money(value: float | int | None) -> str:
@@ -85,13 +344,16 @@ def base_layout(fig: go.Figure, title: str, height: int = 380) -> go.Figure:
     fig.update_layout(
         title=title,
         height=height,
-        margin=dict(l=10, r=10, t=48, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1),
+        margin=dict(l=12, r=12, t=48, b=16),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=11, color=TEXT_MUTED)),
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, Segoe UI, sans-serif", color=TEXT, size=12),
+        title_font=dict(size=14, color=TEXT),
+        hoverlabel=dict(bgcolor="#111827", bordercolor="#374151", font_color="#f9fafb"),
     )
-    fig.update_yaxes(gridcolor="rgba(100,116,139,.18)")
-    fig.update_xaxes(gridcolor="rgba(100,116,139,.10)")
+    fig.update_yaxes(gridcolor="rgba(100,116,139,.18)", zeroline=False, tickfont=dict(color=TEXT_MUTED, size=11))
+    fig.update_xaxes(gridcolor="rgba(100,116,139,.10)", zeroline=False, tickfont=dict(color=TEXT_MUTED, size=11))
     return fig
 
 

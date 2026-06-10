@@ -25,9 +25,12 @@ from ui_helpers import (
     POSITIVE,
     WARNING,
     base_layout,
+    chip,
     fmt_irr,
     fmt_money,
     fmt_pct,
+    metric_cards,
+    section_header,
     show_table,
     export_portfolio_report,
 )
@@ -83,6 +86,34 @@ def kpi_header(accounts: pd.DataFrame) -> None:
     c[4].metric("Inactive w/ Last 12 Mo", f"{len(inact_12m):,}", "Reactivation targets", delta_color="off")
 
 
+def kpi_header(accounts: pd.DataFrame) -> None:
+    """Light-theme replica of the original 10-card Pankit KPI grid."""
+    workable = accounts[is_workable(accounts)]
+    active = accounts[accounts["raw_status"] == "Workable - Active"]
+    inactive = accounts[accounts["raw_status"].astype(str).str.contains("Inactive", case=False, na=False)]
+    zero_ob = accounts[accounts["ob"] < 1]
+    total_fac = accounts["facility"].sum()
+    total_ob = accounts["ob"].sum()
+    total_rep = accounts["mtd_repayments"].sum()
+    util = total_ob / total_fac * 100 if total_fac > 0 else 0
+    inact_12m = inactive[inactive["days_since_last"].fillna(999) <= 365]
+    metric_cards(
+        [
+            ("Total Workable Accounts", f"{len(workable):,}", "", ACCENT_PANKIT),
+            ("Active Accounts", f"{len(active):,}", "", POSITIVE),
+            ("Inactive Accounts", f"{len(inactive):,}", "", "#f59e0b"),
+            ("Zero-OB Accounts", f"{len(zero_ob):,}", "", NEGATIVE),
+            ("Total Facility Size", fmt_money(total_fac), "", "#8b5cf6"),
+            ("Total Outstanding OB", fmt_money(total_ob), "", ACCENT_PANKIT),
+            ("Portfolio Utilization", f"{util:.1f}%", "", POSITIVE if util >= 75 else "#f59e0b"),
+            ("Net OB (OB - Repayments)", fmt_money(total_ob - total_rep), "", MUTED),
+            ("MTD Repayments", fmt_money(total_rep), "", POSITIVE),
+            ("Inactive w/ Last 12 Mo", f"{len(inact_12m):,}", "Reactivation targets", "#fb923c"),
+        ],
+        columns=5,
+    )
+
+
 def render_executive(accounts: pd.DataFrame, accounts_team: pd.DataFrame, invoices_team: pd.DataFrame,
                      ob_pivot: pd.DataFrame, cfg) -> None:
     st.caption("Executive view is leader-level: it uses the whole division regardless of the AM/status filters (matches the original).")
@@ -114,7 +145,7 @@ def render_executive(accounts: pd.DataFrame, accounts_team: pd.DataFrame, invoic
         fig.update_yaxes(tickprefix="$")
         st.plotly_chart(base_layout(fig, "MTD Repayments by AM"), use_container_width=True)
 
-    st.markdown("#### AM Portfolio Snapshot")
+    section_header("AM Portfolio Snapshot")
     perf = _am_perf(accounts_team, invoices_team, cfg).sort_values("ob", ascending=False)
     display = perf.copy()
     display["wirr"] = display["wirr"].map(fmt_irr)
@@ -262,7 +293,7 @@ def render_am_performance(accounts_team: pd.DataFrame, invoices_team: pd.DataFra
                 t[1].metric("Inactive", f"{row['inactive']:,}")
                 t[2].metric("MTD Repay", fmt_money(row["repayments"]))
                 t[3].metric("Total Orig.", fmt_money(row["originations"]))
-    st.markdown("#### AM Comparison Table")
+    section_header("AM Comparison Table")
     display = perf.sort_values("ob", ascending=False).copy()
     display["wirr"] = display["wirr"].map(fmt_irr)
     st.dataframe(display, use_container_width=True, hide_index=True,

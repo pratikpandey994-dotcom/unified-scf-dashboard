@@ -10,6 +10,7 @@ from dashboard_metrics import TEAMS, apply_filters, build_portfolio, filter_team
 import views_nikhil
 import views_pankit
 import views_referral
+from ui_helpers import inject_visual_system
 
 
 st.set_page_config(
@@ -19,11 +20,57 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+inject_visual_system()
+
+query_team = st.query_params.get("team_name")
+if isinstance(query_team, list):
+    query_team = query_team[0] if query_team else None
+if query_team in ("Team Nikhil", "Team Pankit") and "team_name" not in st.session_state:
+    st.session_state["team_name"] = query_team
+
 
 def show_source_defaults() -> None:
     with st.expander("Default file paths", expanded=False):
         for label, path in DEFAULT_FILES.items():
             st.caption(f"{label}: {path}")
+
+
+def route_buttons(team_name: str) -> None:
+    """Reference-style quick paths into the views that hold the detailed data."""
+    if team_name == "Team Nikhil":
+        routes = [
+            ("Snapshot", "Snapshot"),
+            ("Portfolio Quality", "Portfolio"),
+            ("Team Scorecards", "Team"),
+            ("Risk Health", "Health"),
+            ("Action Queue", "Actions"),
+            ("Account Pulse", "Account Pulse"),
+            ("CP Health", "CP Health"),
+            ("Tracker", "Tracker"),
+        ]
+    else:
+        routes = [
+            ("Executive", "Executive"),
+            ("Inventory", "Account Inventory"),
+            ("Utilization", "Utilization"),
+            ("Zero OB", "Zero OB"),
+            ("Inactive", "Workable Inactive"),
+            ("Repayments", "Repayments"),
+            ("OB Dent", "OB Dent"),
+            ("AM Performance", "AM Performance"),
+            ("75% Engine", "75% Engine"),
+        ]
+
+    st.markdown(
+        '<div class="scf-path-row"><span class="scf-path-label">Smart paths</span></div>',
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(min(len(routes), 5))
+    for idx, (label, target) in enumerate(routes):
+        with cols[idx % len(cols)]:
+            if st.button(label, key=f"{team_name}_route_{target}", use_container_width=True):
+                st.session_state[f"{team_name}_nav"] = target
+                st.rerun()
 
 
 st.title("Portfolio Dashboard")
@@ -66,6 +113,10 @@ today = pd.Timestamp(today_value)
 
 team_name = st.radio("Division", list(TEAMS.keys()), horizontal=True, key="team_name")
 cfg = TEAMS[team_name]
+
+query_view = st.query_params.get("view")
+if isinstance(query_view, list):
+    query_view = query_view[0] if query_view else None
 
 team_accounts = filter_team(accounts_all, team_name)
 team_invoices = invoices_all[invoices_all["account_id"].isin(set(team_accounts["id"]))]
@@ -115,6 +166,9 @@ PANKIT_VIEWS = ["Executive", "Account Inventory", "Utilization", "Zero OB", "Wor
                 "Repayments", "OB Dent", "AM Performance", "75% Engine", "Opportunity Views", "Referral Tracker"]
 
 view_options = NIKHIL_VIEWS if team_name == "Team Nikhil" else PANKIT_VIEWS
+if query_view in view_options:
+    st.session_state[f"{team_name}_nav"] = query_view
+route_buttons(team_name)
 view = st.radio("View", view_options, horizontal=True, key=f"{team_name}_nav", label_visibility="collapsed")
 st.divider()
 
