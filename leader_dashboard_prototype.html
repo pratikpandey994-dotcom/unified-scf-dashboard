@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCF Leader Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #F5F4EF;
+  --surface: #FFFFFF;
+  --navy: #0F1F3D;
+  --navy2: #1B3366;
+  --gold: #C8960A;
+  --gold-bg: #FEF9EC;
+  --emerald: #0D6B52;
+  --emerald-bg: #ECFDF5;
+  --amber: #B45309;
+  --amber-bg: #FFFBEB;
+  --crimson: #991B1B;
+  --crimson-bg: #FEF2F2;
+  --blue: #1D4ED8;
+  --blue-bg: #EFF6FF;
+  --slate: #64748B;
+  --border: #E8E4DC;
+  --text: #1A1A1A;
+  --muted: #6B7280;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden;font-size:13px}
+
+/* ── SIDEBAR ── */
+.sidebar{width:216px;min-width:216px;background:var(--navy);display:flex;flex-direction:column;overflow-y:auto}
+.sb-brand{padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-logo{font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:#fff;letter-spacing:.1em;text-transform:uppercase}
+.sb-sub{font-size:10.5px;color:rgba(255,255,255,.38);margin-top:2px;letter-spacing:.04em}
+
+.team-toggle{margin:14px 14px 6px;background:rgba(255,255,255,.07);border-radius:8px;padding:3px;display:flex;gap:3px}
+.t-btn{flex:1;padding:7px 4px;border:none;background:transparent;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;cursor:pointer;border-radius:6px;transition:all .18s;line-height:1.3;text-align:center}
+.t-btn.active{background:var(--gold);color:var(--navy);font-weight:700}
+
+.sb-sec{padding:12px 14px 6px}
+.sb-lbl{font-size:9.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.3);margin-bottom:8px}
+
+.win-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px}
+.win-chip{padding:5px 4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:5px;color:rgba(255,255,255,.55);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer;text-align:center;transition:all .15s}
+.win-chip.active{background:rgba(200,150,10,.22);border-color:var(--gold);color:#FCD34D}
+.win-chip:hover:not(.active){background:rgba(255,255,255,.1);color:rgba(255,255,255,.85)}
+
+.am-list{display:flex;flex-direction:column;gap:2px}
+.am-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:5px;cursor:pointer;transition:background .12s}
+.am-row:hover{background:rgba(255,255,255,.06)}
+.am-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.am-nm{font-size:11.5px;color:rgba(255,255,255,.68);flex:1}
+.am-cb{width:14px;height:14px;border:1.5px solid rgba(255,255,255,.22);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--navy);flex-shrink:0}
+.am-row.sel .am-cb{background:var(--gold);border-color:var(--gold)}
+.am-row.sel .am-nm{color:#fff}
+
+.sb-footer{margin-top:auto;padding:12px 14px;border-top:1px solid rgba(255,255,255,.07)}
+.sb-date{font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.3)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;height:48px;flex-shrink:0;gap:0}
+.view-ttl{font-family:'Syne',sans-serif;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);margin-right:28px;white-space:nowrap}
+.tabs{display:flex;height:100%;align-items:stretch}
+.tab-btn{padding:0 16px;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;position:relative;transition:color .15s;white-space:nowrap}
+.tab-btn::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--navy);transform:scaleX(0);transition:transform .2s}
+.tab-btn.active{color:var(--navy);font-weight:600}
+.tab-btn.active::after{transform:scaleX(1)}
+.tab-btn:hover:not(.active){color:var(--text)}
+.data-badge{margin-left:auto;display:flex;align-items:center;gap:5px;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#22C55E;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.content{flex:1;overflow-y:auto;padding:22px 24px}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ── PANELS ── */
+.view-panel{display:none}
+.view-panel.active{display:block}
+.tab-panel{display:none}
+.tab-panel.active{display:block;animation:fadein .2s ease}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── KPI BAND ── */
+.kpi-band{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px 15px;position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card.c-navy::before{background:var(--navy)}
+.kpi-card.c-em::before{background:var(--emerald)}
+.kpi-card.c-am::before{background:var(--amber)}
+.kpi-card.c-cr::before{background:var(--crimson)}
+.kpi-card.c-go::before{background:var(--gold)}
+.kpi-card.c-bl::before{background:var(--blue)}
+.kpi-lbl{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.kpi-val{font-family:'DM Mono',monospace;font-size:21px;font-weight:400;color:var(--text);line-height:1}
+.kpi-val sup{font-size:11px;vertical-align:super}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:4px}
+.delta{font-family:'DM Mono',monospace;font-size:10px;padding:1px 5px;border-radius:3px}
+.d-up{background:var(--emerald-bg);color:var(--emerald)}
+.d-dn{background:var(--crimson-bg);color:var(--crimson)}
+.d-nt{background:#F3F4F6;color:var(--slate)}
+.heat-bar{margin-top:8px;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.heat-fill{height:100%;border-radius:2px}
+
+/* ── CHART GRIDS ── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.grid32{display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:20px}
+.grid23{display:grid;grid-template-columns:2fr 3fr;gap:14px;margin-bottom:20px}
+
+/* ── CHART CARD ── */
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.cc-title{font-size:12px;font-weight:600;color:var(--navy);margin-bottom:2px}
+.cc-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.chart-wrap{position:relative;height:190px}
+.chart-wrap.sm{height:155px}
+
+/* Donut center overlay */
+.donut-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);text-align:center;pointer-events:none}
+.dc-pct{font-family:'DM Mono',monospace;font-size:26px;font-weight:300;color:var(--navy)}
+.dc-lbl{font-size:10px;color:var(--muted);margin-top:1px}
+
+/* ── WINDOWS ── */
+.win-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.win-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.win-card:hover{border-color:var(--navy);box-shadow:0 2px 10px rgba(15,31,61,.08)}
+.win-card-lbl{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.win-card-amt{font-family:'DM Mono',monospace;font-size:28px;font-weight:300;color:var(--navy)}
+.win-card-amt sup{font-size:13px;vertical-align:super}
+.win-card-ct{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* ── UTILIZATION BAR ── */
+.util-dist{display:flex;height:30px;border-radius:8px;overflow:hidden;margin-bottom:10px;gap:2px}
+.util-seg{display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:10.5px;font-weight:500;color:white;min-width:24px;cursor:pointer;transition:filter .15s;border-radius:4px}
+.util-seg:hover{filter:brightness(1.12)}
+.util-legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.ul-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+.ul-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+/* ── TABLE ── */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px}
+.tc-head{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.tc-title{font-size:13px;font-weight:600;color:var(--navy)}
+.tc-acts{display:flex;gap:6px}
+.tc-act{padding:4px 11px;background:var(--bg);border:1px solid var(--border);border-radius:5px;font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .15s}
+.tc-act:hover{background:var(--navy);color:#fff;border-color:var(--navy)}
+table{width:100%;border-collapse:collapse}
+thead th{padding:9px 16px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);background:var(--bg);border-bottom:1px solid var(--border);white-space:nowrap}
+thead th.r{text-align:right}
+tbody tr{border-bottom:1px solid #F3F0EB;transition:background .1s;cursor:pointer}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#FAF9F5}
+tbody td{padding:9px 16px;font-size:12px;color:var(--text)}
+tbody td.r{text-align:right;font-family:'DM Mono',monospace;font-size:11.5px}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap}
+.b-clean{background:var(--emerald-bg);color:var(--emerald)}
+.b-ov{background:var(--amber-bg);color:var(--amber)}
+.b-npa{background:var(--crimson-bg);color:var(--crimson)}
+.b-act{background:var(--blue-bg);color:var(--blue)}
+.b-inact{background:#F3F4F6;color:var(--slate)}
+.b-sus{background:#FFF8E7;color:#92400E}
+.b-hi{background:var(--emerald-bg);color:var(--emerald)}
+.b-mid{background:var(--amber-bg);color:var(--amber)}
+.b-lo{background:var(--crimson-bg);color:var(--crimson)}
+.b-zero{background:#F3F4F6;color:var(--slate)}
+
+/* ── AM CARDS ── */
+.am-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.am-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+.am-card-hd{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.am-avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.am-card-nm{font-size:13px;font-weight:600;color:var(--navy)}
+.am-card-ct{font-size:11px;color:var(--muted)}
+.am-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--border);padding-top:12px}
+.am-m{text-align:center;padding:4px 0}
+.am-m-val{font-family:'DM Mono',monospace;font-size:15px;font-weight:400;color:var(--text)}
+.am-m-lbl{font-size:10px;color:var(--muted);margin-top:2px;letter-spacing:.03em}
+
+/* ── SECTION HEADER ── */
+.sec-hd{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.sec-ttl{font-size:13px;font-weight:600;color:var(--navy)}
+.sec-ct{font-family:'DM Mono',monospace;font-size:10.5px;background:var(--navy);color:#fff;padding:2px 7px;border-radius:10px}
+
+/* ── WIRR indicator ── */
+.wirr-bar{display:flex;align-items:center;gap:6px;margin-top:3px}
+.wirr-track{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.wirr-fill{height:100%;background:var(--emerald);border-radius:2px}
+
+/* ── OPPORTUNITY RANK ── */
+.opp-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F3F0EB}
+.opp-row:last-child{border-bottom:none}
+.opp-rank{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);width:20px;text-align:right;flex-shrink:0}
+.opp-name{flex:1;font-size:12px;color:var(--text)}
+.opp-am{font-size:11px;color:var(--muted)}
+.opp-gap{font-family:'DM Mono',monospace;font-size:13px;font-weight:400;color:var(--crimson)}
+
+/* ── RISK SUMMARY BLOCK ── */
+.risk-block{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px}
+.risk-tile{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.rt-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px}
+.rt-val{font-family:'DM Mono',monospace;font-size:24px;font-weight:300;color:var(--text)}
+.rt-val sup{font-size:11px;vertical-align:super}
+.rt-pct{font-size:11.5px;color:var(--muted);margin-top:4px}
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside class="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">Drip SCF</div>
+    <div class="sb-sub">Leader Intelligence</div>
+  </div>
+
+  <div class="team-toggle">
+    <button class="t-btn active" onclick="switchTeam('nikhil',this)">Portfolio<br>Risk</button>
+    <button class="t-btn" onclick="switchTeam('pankit',this)">Utilization<br>Engine</button>
+  </div>
+
+  <div class="sb-sec">
+    <div class="sb-lbl">Time Window</div>
+    <div class="win-grid">
+      <div class="win-chip active" onclick="selectWindow(this,'CW')">CW</div>
+      <div class="win-chip" onclick="selectWindow(this,'NW')">NW</div>
+      <div class="win-chip" onclick="selectWindow(this,'CM')">CM</div>
+      <div class="win-chip" onclick="selectWindow(this,'NM')">NM</div>
+      <div class="win-chip" onclick="selectWindow(this,'MTD')">MTD</div>
+      <div class="win-chip" onclick="selectWindow(this,'QTD')">QTD</div>
+    </div>
+  </div>
+
+  <div class="sb-sec" id="nikhil-ams">
+    <div class="sb-lbl">Account Managers</div>
+    <div class="am-list">
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#4361EE"></span><span class="am-nm">Nikhil Shetty</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#7C3AED"></span><span class="am-nm">Darshan Hublikar</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#059669"></span><span class="am-nm">Deepsayan Dam</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#DC2626"></span><span class="am-nm">Ashitha Nair</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#D97706"></span><span class="am-nm">Asif Ali</span><span class="am-cb">✓</span></div>
+    </div>
+  </div>
+
+  <div class="sb-sec" id="pankit-ams" style="display:none">
+    <div class="sb-lbl">Account Managers</div>
+    <div class="am-list">
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#0284C7"></span><span class="am-nm">Pankit Shah</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#7C3AED"></span><span class="am-nm">Sonal Mishra</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#059669"></span><span class="am-nm">Pejush Hal</span><span class="am-cb">✓</span></div>
+      <div class="am-row sel" onclick="toggleAM(this)"><span class="am-dot" style="background:#DC2626"></span><span class="am-nm">Kaustav Das</span><span class="am-cb">✓</span></div>
+    </div>
+  </div>
+
+  <div class="sb-footer">
+    <div class="sb-date">Jun 5 2026 · Jun-5 extract</div>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main">
+
+  <!-- Top bar: Nikhil -->
+  <div class="topbar" id="topbar-nikhil">
+    <span class="view-ttl">Portfolio Risk &amp; Collections</span>
+    <div class="tabs" id="tabs-nikhil">
+      <button class="tab-btn active" onclick="switchTab('nikhil','overview',this)">Overview</button>
+      <button class="tab-btn" onclick="switchTab('nikhil','risk',this)">Risk &amp; NPA</button>
+      <button class="tab-btn" onclick="switchTab('nikhil','collections',this)">Collections</button>
+      <button class="tab-btn" onclick="switchTab('nikhil','ams',this)">AM Performance</button>
+      <button class="tab-btn" onclick="switchTab('nikhil','accounts',this)">Accounts</button>
+    </div>
+    <div class="data-badge"><span class="live-dot"></span>250 accounts · Jun-5</div>
+  </div>
+
+  <!-- Top bar: Pankit -->
+  <div class="topbar" id="topbar-pankit" style="display:none">
+    <span class="view-ttl">Utilization &amp; Opportunity</span>
+    <div class="tabs" id="tabs-pankit">
+      <button class="tab-btn active" onclick="switchTab('pankit','overview',this)">Overview</button>
+      <button class="tab-btn" onclick="switchTab('pankit','engine',this)">75% Engine</button>
+      <button class="tab-btn" onclick="switchTab('pankit','inventory',this)">Inventory</button>
+      <button class="tab-btn" onclick="switchTab('pankit','ams',this)">AM Performance</button>
+      <button class="tab-btn" onclick="switchTab('pankit','accounts',this)">Accounts</button>
+    </div>
+    <div class="data-badge"><span class="live-dot"></span>194 accounts · Jun-5</div>
+  </div>
+
+  <!-- ══ CONTENT ══ -->
+  <div class="content">
+
+    <!-- ════ NIKHIL VIEW ════ -->
+    <div class="view-panel active" id="view-nikhil">
+
+      <!-- OVERVIEW TAB -->
+      <div class="tab-panel active" id="nikhil-overview">
+        <div class="kpi-band">
+          <div class="kpi-card c-navy">
+            <div class="kpi-lbl">Total OB</div>
+            <div class="kpi-val"><sup>₹</sup>182.4<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-up">+4.2%</span> vs last month</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:73%;background:var(--navy)"></div></div>
+          </div>
+          <div class="kpi-card c-em">
+            <div class="kpi-lbl">Clean OB</div>
+            <div class="kpi-val"><sup>₹</sup>147.5<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-up">80.9%</span> of portfolio</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:81%;background:var(--emerald)"></div></div>
+          </div>
+          <div class="kpi-card c-am">
+            <div class="kpi-lbl">Overdue OB</div>
+            <div class="kpi-val"><sup>₹</sup>24.1<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-nt">13.2%</span> DPD 8–90</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:13%;background:var(--amber)"></div></div>
+          </div>
+          <div class="kpi-card c-cr">
+            <div class="kpi-lbl">NPA OB</div>
+            <div class="kpi-val"><sup>₹</sup>10.8<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-dn">5.9%</span> DPD &gt;90</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:6%;background:var(--crimson)"></div></div>
+          </div>
+          <div class="kpi-card c-go">
+            <div class="kpi-lbl">Due This Week</div>
+            <div class="kpi-val"><sup>₹</sup>18.3<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-nt">23 accounts</span></div>
+            <div class="heat-bar"><div class="heat-fill" style="width:55%;background:var(--gold)"></div></div>
+          </div>
+          <div class="kpi-card c-bl">
+            <div class="kpi-lbl">WIRR</div>
+            <div class="kpi-val">22.4<small style="font-size:12px">%</small></div>
+            <div class="kpi-sub"><span class="delta d-up">+0.3pp</span> vs last month</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:80%;background:var(--blue)"></div></div>
+          </div>
+        </div>
+
+        <div class="grid32">
+          <div class="chart-card">
+            <div class="cc-title">Portfolio Quality</div>
+            <div class="cc-sub">By outstanding balance — click segment to drill</div>
+            <div style="display:flex;gap:20px;align-items:center">
+              <div style="position:relative;width:190px;height:190px;flex-shrink:0">
+                <canvas id="donut-quality" width="190" height="190"></canvas>
+                <div class="donut-center">
+                  <div class="dc-pct">80.9%</div>
+                  <div class="dc-lbl">Clean</div>
+                </div>
+              </div>
+              <div style="flex:1">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                      <span style="font-size:12px;color:var(--emerald);font-weight:600">● Clean</span>
+                      <span style="font-family:'DM Mono',monospace;font-size:12px">₹147.5Cr · 80.9%</span>
+                    </div>
+                    <div style="height:4px;background:var(--border);border-radius:2px"><div style="width:80.9%;height:100%;background:var(--emerald);border-radius:2px"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                      <span style="font-size:12px;color:var(--amber);font-weight:600">● Overdue</span>
+                      <span style="font-family:'DM Mono',monospace;font-size:12px">₹24.1Cr · 13.2%</span>
+                    </div>
+                    <div style="height:4px;background:var(--border);border-radius:2px"><div style="width:13.2%;height:100%;background:var(--amber);border-radius:2px"></div></div>
+                  </div>
+                  <div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                      <span style="font-size:12px;color:var(--crimson);font-weight:600">● NPA</span>
+                      <span style="font-family:'DM Mono',monospace;font-size:12px">₹10.8Cr · 5.9%</span>
+                    </div>
+                    <div style="height:4px;background:var(--border);border-radius:2px"><div style="width:5.9%;height:100%;background:var(--crimson);border-radius:2px"></div></div>
+                  </div>
+                  <div style="border-top:1px solid var(--border);padding-top:10px;font-size:11px;color:var(--muted)">
+                    250 accounts · ₹182.4Cr total · WIRR 22.4%
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <div class="cc-title">Collections Pipeline</div>
+            <div class="cc-sub">Outstanding due by time window (₹ Cr)</div>
+            <div class="chart-wrap"><canvas id="chart-collections-bar"></canvas></div>
+          </div>
+        </div>
+
+        <div class="win-cards">
+          <div class="win-card">
+            <div class="win-card-lbl">Due This Week</div>
+            <div class="win-card-amt"><sup>₹</sup>18.3<span style="font-size:14px">Cr</span></div>
+            <div class="win-card-ct">23 accounts · Mon–Sun</div>
+          </div>
+          <div class="win-card">
+            <div class="win-card-lbl">Due This Month</div>
+            <div class="win-card-amt"><sup>₹</sup>41.7<span style="font-size:14px">Cr</span></div>
+            <div class="win-card-ct">58 accounts</div>
+          </div>
+          <div class="win-card">
+            <div class="win-card-lbl">Due Next Month</div>
+            <div class="win-card-amt"><sup>₹</sup>33.2<span style="font-size:14px">Cr</span></div>
+            <div class="win-card-ct">44 accounts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RISK TAB -->
+      <div class="tab-panel" id="nikhil-risk">
+        <div class="risk-block">
+          <div class="risk-tile">
+            <div class="rt-lbl" style="color:var(--amber)">Overdue OB</div>
+            <div class="rt-val"><sup>₹</sup>24.1<small style="font-size:11px">Cr</small></div>
+            <div class="rt-pct">34 accounts · DPD 8–90</div>
+          </div>
+          <div class="risk-tile">
+            <div class="rt-lbl" style="color:var(--crimson)">NPA OB</div>
+            <div class="rt-val"><sup>₹</sup>10.8<small style="font-size:11px">Cr</small></div>
+            <div class="rt-pct">11 accounts · DPD &gt;90</div>
+          </div>
+          <div class="risk-tile">
+            <div class="rt-lbl" style="color:var(--muted)">At-Risk Total</div>
+            <div class="rt-val"><sup>₹</sup>34.9<small style="font-size:11px">Cr</small></div>
+            <div class="rt-pct">19.1% of portfolio</div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="chart-card">
+            <div class="cc-title">Overdue by AM</div>
+            <div class="cc-sub">₹Cr at risk per account manager</div>
+            <div class="chart-wrap"><canvas id="chart-overdue-am"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="cc-title">DPD Bucket Distribution</div>
+            <div class="cc-sub">Account count by days past due</div>
+            <div class="chart-wrap"><canvas id="chart-dpd-dist"></canvas></div>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="tc-head">
+            <span class="tc-title">Overdue &amp; NPA Accounts</span>
+            <div class="tc-acts"><button class="tc-act">Export</button><button class="tc-act">Add to Tracker</button></div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>Company</th><th>AM</th><th class="r">OB (₹Cr)</th><th class="r">Facility (₹Cr)</th><th class="r">DPD</th><th>Status</th><th>Risk</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Bharat Steel Works</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span class="am-dot" style="background:#7C3AED;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Darshan H.</span></td><td class="r">3.80</td><td class="r">5.50</td><td class="r">14</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+              <tr><td>Delta Foods &amp; Beverages</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span class="am-dot" style="background:#DC2626;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Ashitha N.</span></td><td class="r">2.30</td><td class="r">4.00</td><td class="r">45</td><td><span class="badge b-sus">Suspended</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+              <tr><td>Eastern Pharma Corp</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span class="am-dot" style="background:#D97706;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Asif A.</span></td><td class="r">1.90</td><td class="r">3.50</td><td class="r">120</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-npa">NPA</span></td></tr>
+              <tr><td>Himalaya Auto Parts</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span class="am-dot" style="background:#059669;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Deepsayan D.</span></td><td class="r">2.10</td><td class="r">4.50</td><td class="r">22</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+              <tr><td>Kiran Plastics</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span class="am-dot" style="background:#DC2626;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Ashitha N.</span></td><td class="r">3.40</td><td class="r">5.00</td><td class="r">97</td><td><span class="badge b-sus">Suspended</span></td><td><span class="badge b-npa">NPA</span></td></tr>
+              <tr><td>Metro Cables Ltd</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span class="am-dot" style="background:#4361EE;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Nikhil S.</span></td><td class="r">1.60</td><td class="r">3.00</td><td class="r">31</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- COLLECTIONS TAB -->
+      <div class="tab-panel" id="nikhil-collections">
+        <div class="kpi-band" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi-card c-go">
+            <div class="kpi-lbl">Due This Week (CW)</div>
+            <div class="kpi-val"><sup>₹</sup>18.3<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub">23 accounts</div>
+          </div>
+          <div class="kpi-card c-navy">
+            <div class="kpi-lbl">Due Next Week (NW)</div>
+            <div class="kpi-val"><sup>₹</sup>22.6<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub">31 accounts</div>
+          </div>
+          <div class="kpi-card c-bl">
+            <div class="kpi-lbl">Recovery (MTD)</div>
+            <div class="kpi-val"><sup>₹</sup>6.4<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub">from 8 NPA/overdue</div>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="tc-head">
+            <span class="tc-title">Collections Due — This Week</span>
+            <div class="tc-acts"><button class="tc-act">CW</button><button class="tc-act">NW</button><button class="tc-act">CM</button><button class="tc-act">Export</button></div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>Company</th><th>AM</th><th class="r">Due (₹Cr)</th><th class="r">OB (₹Cr)</th><th>Risk</th><th>Status</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Arjun Agro Exports</td><td>Nikhil S.</td><td class="r">4.20</td><td class="r">4.20</td><td><span class="badge b-clean">Clean</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Chennai Textiles Ltd</td><td>Deepsayan D.</td><td class="r">3.10</td><td class="r">5.10</td><td><span class="badge b-clean">Clean</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Fortune Logistics</td><td>Nikhil S.</td><td class="r">2.80</td><td class="r">6.70</td><td><span class="badge b-clean">Clean</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Greenfield Agro</td><td>Darshan H.</td><td class="r">1.90</td><td class="r">3.40</td><td><span class="badge b-clean">Clean</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Indo Rubber Industries</td><td>Ashitha N.</td><td class="r">2.40</td><td class="r">4.80</td><td><span class="badge b-clean">Clean</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Bharat Steel Works</td><td>Darshan H.</td><td class="r">3.80</td><td class="r">3.80</td><td><span class="badge b-ov">Overdue</span></td><td><span class="badge b-act">Active</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- AM PERFORMANCE TAB -->
+      <div class="tab-panel" id="nikhil-ams">
+        <div class="grid2" style="margin-bottom:20px">
+          <div class="chart-card">
+            <div class="cc-title">OB by Account Manager</div>
+            <div class="cc-sub">Total outstanding balance (₹ Cr)</div>
+            <div class="chart-wrap"><canvas id="chart-am-ob"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="cc-title">WIRR by Account Manager</div>
+            <div class="cc-sub">OB-weighted signed-up IRR (%)</div>
+            <div class="chart-wrap"><canvas id="chart-am-wirr"></canvas></div>
+          </div>
+        </div>
+        <div class="am-grid">
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#4361EE">NS</div><div><div class="am-card-nm">Nikhil Shetty</div><div class="am-card-ct">68 accounts</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹52.1</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">71%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val">23.1%</div><div class="am-m-lbl">WIRR</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--emerald)">●</div><div class="am-m-lbl">Health</div></div>
+            </div>
+          </div>
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#7C3AED">DH</div><div><div class="am-card-nm">Darshan Hublikar</div><div class="am-card-ct">54 accounts</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹41.3</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">68%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val">22.7%</div><div class="am-m-lbl">WIRR</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--emerald)">●</div><div class="am-m-lbl">Health</div></div>
+            </div>
+          </div>
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#059669">DD</div><div><div class="am-card-nm">Deepsayan Dam</div><div class="am-card-ct">47 accounts</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹38.8</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">65%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val">21.9%</div><div class="am-m-lbl">WIRR</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--amber)">●</div><div class="am-m-lbl">Health</div></div>
+            </div>
+          </div>
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#DC2626">AN</div><div><div class="am-card-nm">Ashitha Nair</div><div class="am-card-ct">43 accounts</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹29.4</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">62%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val">20.8%</div><div class="am-m-lbl">WIRR</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--amber)">●</div><div class="am-m-lbl">Health</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACCOUNTS TAB -->
+      <div class="tab-panel" id="nikhil-accounts">
+        <div class="table-card">
+          <div class="tc-head">
+            <span class="tc-title">Account Universe — Team Nikhil</span>
+            <div class="tc-acts"><button class="tc-act">Sort: OB ↓</button><button class="tc-act">Filter</button><button class="tc-act">Export</button></div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>Company</th><th>AM</th><th class="r">OB (₹Cr)</th><th class="r">Facility (₹Cr)</th><th class="r">Util %</th><th class="r">DPD</th><th>Classification</th><th>Risk</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Arjun Agro Exports</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#4361EE;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Nikhil S.</span></td><td class="r">4.20</td><td class="r">6.00</td><td class="r">70</td><td class="r">0</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-clean">Clean</span></td></tr>
+              <tr><td>Bharat Steel Works</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#7C3AED;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Darshan H.</span></td><td class="r">3.80</td><td class="r">5.50</td><td class="r">69</td><td class="r">14</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+              <tr><td>Chennai Textiles Ltd</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#059669;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Deepsayan D.</span></td><td class="r">5.10</td><td class="r">7.00</td><td class="r">73</td><td class="r">0</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-clean">Clean</span></td></tr>
+              <tr><td>Delta Foods &amp; Beverages</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#DC2626;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Ashitha N.</span></td><td class="r">2.30</td><td class="r">4.00</td><td class="r">58</td><td class="r">45</td><td><span class="badge b-sus">Suspended</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+              <tr><td>Eastern Pharma Corp</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#D97706;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Asif A.</span></td><td class="r">1.90</td><td class="r">3.50</td><td class="r">54</td><td class="r">120</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-npa">NPA</span></td></tr>
+              <tr><td>Fortune Logistics</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#4361EE;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Nikhil S.</span></td><td class="r">6.70</td><td class="r">8.00</td><td class="r">84</td><td class="r">0</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-clean">Clean</span></td></tr>
+              <tr><td>Greenfield Agro</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#7C3AED;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Darshan H.</span></td><td class="r">3.40</td><td class="r">5.00</td><td class="r">68</td><td class="r">0</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-clean">Clean</span></td></tr>
+              <tr><td>Himalaya Auto Parts</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#059669;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Deepsayan D.</span></td><td class="r">2.10</td><td class="r">4.50</td><td class="r">47</td><td class="r">22</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-ov">Overdue</span></td></tr>
+              <tr><td>Indo Rubber Industries</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#DC2626;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Ashitha N.</span></td><td class="r">4.80</td><td class="r">6.50</td><td class="r">74</td><td class="r">0</td><td><span class="badge b-act">Active</span></td><td><span class="badge b-clean">Clean</span></td></tr>
+              <tr><td>Jupiter Electronics</td><td><span style="display:inline-flex;align-items:center;gap:5px"><span style="background:#D97706;width:7px;height:7px;border-radius:50%;display:inline-block"></span>Asif A.</span></td><td class="r">0.00</td><td class="r">3.00</td><td class="r">0</td><td class="r">0</td><td><span class="badge b-inact">Wkbl Inactive</span></td><td><span class="badge b-clean">Clean</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /view-nikhil -->
+
+    <!-- ════ PANKIT VIEW ════ -->
+    <div class="view-panel" id="view-pankit">
+
+      <!-- OVERVIEW TAB -->
+      <div class="tab-panel active" id="pankit-overview">
+        <div class="kpi-band">
+          <div class="kpi-card c-navy">
+            <div class="kpi-lbl">Total OB</div>
+            <div class="kpi-val"><sup>₹</sup>138.6<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-up">+2.8%</span> vs last month</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:68%;background:var(--navy)"></div></div>
+          </div>
+          <div class="kpi-card c-am">
+            <div class="kpi-lbl">Avg Utilization</div>
+            <div class="kpi-val">67.8<small style="font-size:12px">%</small></div>
+            <div class="kpi-sub"><span class="delta d-nt">Target: 75%</span></div>
+            <div class="heat-bar"><div class="heat-fill" style="width:67.8%;background:var(--amber)"></div></div>
+          </div>
+          <div class="kpi-card c-cr">
+            <div class="kpi-lbl">Gap to 75%</div>
+            <div class="kpi-val"><sup>₹</sup>9.4<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub"><span class="delta d-nt">across 112 accounts</span></div>
+            <div class="heat-bar"><div class="heat-fill" style="width:40%;background:var(--crimson)"></div></div>
+          </div>
+          <div class="kpi-card c-go">
+            <div class="kpi-lbl">At / Above 75%</div>
+            <div class="kpi-val">82<small style="font-size:12px"> accts</small></div>
+            <div class="kpi-sub"><span class="delta d-up">42%</span> of book</div>
+            <div class="heat-bar"><div class="heat-fill" style="width:42%;background:var(--gold)"></div></div>
+          </div>
+          <div class="kpi-card c-em">
+            <div class="kpi-lbl">Zero OB</div>
+            <div class="kpi-val">23<small style="font-size:12px"> accts</small></div>
+            <div class="kpi-sub"><span class="delta d-dn">₹0 funded</span></div>
+            <div class="heat-bar"><div class="heat-fill" style="width:12%;background:var(--emerald)"></div></div>
+          </div>
+          <div class="kpi-card c-bl">
+            <div class="kpi-lbl">Wkbl Inactive</div>
+            <div class="kpi-val">31<small style="font-size:12px"> accts</small></div>
+            <div class="kpi-sub"><span class="delta d-dn">No disbursal &gt;365d</span></div>
+            <div class="heat-bar"><div class="heat-fill" style="width:16%;background:var(--blue)"></div></div>
+          </div>
+        </div>
+
+        <div class="chart-card" style="margin-bottom:20px">
+          <div class="cc-title">Utilization Distribution — 194 Accounts</div>
+          <div class="cc-sub">Segment size = account count · hover for details</div>
+          <div class="util-dist" id="util-dist-bar">
+            <div class="util-seg" style="background:#0D6B52;flex:42" title="82 accounts at ≥75%">42%</div>
+            <div class="util-seg" style="background:#D97706;flex:31" title="60 accounts 50–75%">31%</div>
+            <div class="util-seg" style="background:#DC2626;flex:15" title="29 accounts 25–50%">15%</div>
+            <div class="util-seg" style="background:#991B1B;flex:7" title="14 accounts <25%">7%</div>
+            <div class="util-seg" style="background:#6B7280;flex:5" title="9 accounts at 0%">0%</div>
+          </div>
+          <div class="util-legend">
+            <div class="ul-item"><span class="ul-dot" style="background:#0D6B52"></span>≥75% Target (82)</div>
+            <div class="ul-item"><span class="ul-dot" style="background:#D97706"></span>50–75% (60)</div>
+            <div class="ul-item"><span class="ul-dot" style="background:#DC2626"></span>25–50% (29)</div>
+            <div class="ul-item"><span class="ul-dot" style="background:#991B1B"></span>&lt;25% (14)</div>
+            <div class="ul-item"><span class="ul-dot" style="background:#6B7280"></span>Zero OB (9)</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="chart-card">
+            <div class="cc-title">AM Utilization vs 75% Target</div>
+            <div class="cc-sub">Average utilization by account manager</div>
+            <div class="chart-wrap"><canvas id="chart-am-util"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="cc-title">Origination vs Repayments (MTD)</div>
+            <div class="cc-sub">₹ Cr by account manager</div>
+            <div class="chart-wrap"><canvas id="chart-orig-repaid"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 75% ENGINE TAB -->
+      <div class="tab-panel" id="pankit-engine">
+        <div class="kpi-band" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi-card c-cr">
+            <div class="kpi-lbl">Total Gap to 75%</div>
+            <div class="kpi-val"><sup>₹</sup>9.4<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub">112 accounts below target</div>
+          </div>
+          <div class="kpi-card c-am">
+            <div class="kpi-lbl">Avg Gap per Account</div>
+            <div class="kpi-val"><sup>₹</sup>0.84<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub">₹8.4L avg funding needed</div>
+          </div>
+          <div class="kpi-card c-go">
+            <div class="kpi-lbl">Top Opportunity</div>
+            <div class="kpi-val"><sup>₹</sup>1.87<small style="font-size:12px">Cr</small></div>
+            <div class="kpi-sub">Fine Chemicals Corp</div>
+          </div>
+        </div>
+        <div class="chart-card" style="margin-bottom:20px">
+          <div class="cc-title">Top 10 Gap-to-75% Opportunities</div>
+          <div class="cc-sub">Ranked by funding gap — largest first</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="chart-gap-rank"></canvas></div>
+        </div>
+        <div class="table-card">
+          <div class="tc-head">
+            <span class="tc-title">High-Opportunity Queue — Below 75%</span>
+            <div class="tc-acts"><button class="tc-act">Sort: Gap ↓</button><button class="tc-act">Export</button></div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>#</th><th>Company</th><th>AM</th><th class="r">OB (₹Cr)</th><th class="r">Facility</th><th class="r">Util %</th><th class="r">Gap (₹Cr)</th><th>Band</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">1</td><td>Fine Chemicals Corp</td><td>Sonal M.</td><td class="r">0.00</td><td class="r">2.50</td><td class="r">0</td><td class="r" style="color:var(--crimson);font-weight:600">1.875</td><td><span class="badge b-zero">Zero OB</span></td></tr>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">2</td><td>Jet Logistics Corp</td><td>Sonal M.</td><td class="r">0.00</td><td class="r">2.00</td><td class="r">0</td><td class="r" style="color:var(--crimson);font-weight:600">1.500</td><td><span class="badge b-zero">Zero OB</span></td></tr>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">3</td><td>Horizon Packaging</td><td>Kaustav D.</td><td class="r">1.20</td><td class="r">4.00</td><td class="r">30</td><td class="r" style="color:var(--crimson);font-weight:600">1.800</td><td><span class="badge b-lo">Low</span></td></tr>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">4</td><td>Eco Plastics Ltd</td><td>Pankit S.</td><td class="r">0.90</td><td class="r">3.00</td><td class="r">30</td><td class="r" style="color:var(--amber);font-weight:600">1.350</td><td><span class="badge b-lo">Low</span></td></tr>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">5</td><td>Crystal Polymers</td><td>Pejush H.</td><td class="r">1.80</td><td class="r">3.50</td><td class="r">51</td><td class="r" style="color:var(--amber);font-weight:600">0.825</td><td><span class="badge b-mid">Mid</span></td></tr>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">6</td><td>Bright Fabrics India</td><td>Sonal M.</td><td class="r">2.40</td><td class="r">4.00</td><td class="r">60</td><td class="r" style="color:var(--amber);font-weight:600">0.600</td><td><span class="badge b-mid">Mid</span></td></tr>
+              <tr><td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:11px">7</td><td>Indus Metals</td><td>Pankit S.</td><td class="r">3.20</td><td class="r">4.50</td><td class="r">71</td><td class="r" style="color:var(--muted)">0.175</td><td><span class="badge b-mid">Mid</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- INVENTORY TAB -->
+      <div class="tab-panel" id="pankit-inventory">
+        <div class="grid2">
+          <div class="table-card" style="margin-bottom:0">
+            <div class="tc-head"><span class="tc-title">Zero OB Accounts (23)</span></div>
+            <table>
+              <thead><tr><th>Company</th><th>AM</th><th class="r">Facility (₹Cr)</th><th class="r">Gap (₹Cr)</th></tr></thead>
+              <tbody>
+                <tr><td>Fine Chemicals Corp</td><td>Sonal M.</td><td class="r">2.50</td><td class="r" style="color:var(--crimson)">1.875</td></tr>
+                <tr><td>Jet Logistics Corp</td><td>Sonal M.</td><td class="r">2.00</td><td class="r" style="color:var(--crimson)">1.500</td></tr>
+                <tr><td>Nextgen Components</td><td>Pejush H.</td><td class="r">3.00</td><td class="r" style="color:var(--crimson)">2.250</td></tr>
+                <tr><td>Omega Forge</td><td>Kaustav D.</td><td class="r">1.50</td><td class="r" style="color:var(--crimson)">1.125</td></tr>
+                <tr><td>Prime Agro Ltd</td><td>Pankit S.</td><td class="r">2.00</td><td class="r" style="color:var(--crimson)">1.500</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-card" style="margin-bottom:0">
+            <div class="tc-head"><span class="tc-title">Workable Inactive (31)</span></div>
+            <table>
+              <thead><tr><th>Company</th><th>AM</th><th class="r">Last Disbursal</th><th class="r">Facility (₹Cr)</th></tr></thead>
+              <tbody>
+                <tr><td>Apex Polymers</td><td>Pankit S.</td><td class="r" style="color:var(--amber)">420d ago</td><td class="r">3.00</td></tr>
+                <tr><td>Bright Wires</td><td>Sonal M.</td><td class="r" style="color:var(--amber)">380d ago</td><td class="r">2.00</td></tr>
+                <tr><td>Coastal Traders</td><td>Pejush H.</td><td class="r" style="color:var(--amber)">445d ago</td><td class="r">1.50</td></tr>
+                <tr><td>Delta Polymers</td><td>Kaustav D.</td><td class="r" style="color:var(--amber)">390d ago</td><td class="r">2.50</td></tr>
+                <tr><td>Eastern Imports</td><td>Pankit S.</td><td class="r" style="color:var(--amber)">410d ago</td><td class="r">1.80</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- AM PERFORMANCE TAB -->
+      <div class="tab-panel" id="pankit-ams">
+        <div class="am-grid">
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#0284C7">PS</div><div><div class="am-card-nm">Pankit Shah</div><div class="am-card-ct">58 accounts · Direct</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹42.3</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">73%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--emerald)">₹2.1</div><div class="am-m-lbl">Gap (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--emerald)">●</div><div class="am-m-lbl">Rank #1</div></div>
+            </div>
+          </div>
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#7C3AED">SM</div><div><div class="am-card-nm">Sonal Mishra</div><div class="am-card-ct">51 accounts · Direct</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹36.8</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">70%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--amber)">₹3.2</div><div class="am-m-lbl">Gap (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--amber)">●</div><div class="am-m-lbl">Rank #2</div></div>
+            </div>
+          </div>
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#059669">PH</div><div><div class="am-card-nm">Pejush Hal</div><div class="am-card-ct">44 accounts · Direct</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹31.2</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">65%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--amber)">₹2.8</div><div class="am-m-lbl">Gap (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--amber)">●</div><div class="am-m-lbl">Rank #3</div></div>
+            </div>
+          </div>
+          <div class="am-card">
+            <div class="am-card-hd"><div class="am-avatar" style="background:#DC2626">KD</div><div><div class="am-card-nm">Kaustav Das</div><div class="am-card-ct">41 accounts · Direct</div></div></div>
+            <div class="am-metrics">
+              <div class="am-m"><div class="am-m-val">₹28.3</div><div class="am-m-lbl">OB (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val">62%</div><div class="am-m-lbl">Util</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--crimson)">₹1.3</div><div class="am-m-lbl">Gap (Cr)</div></div>
+              <div class="am-m"><div class="am-m-val" style="color:var(--crimson)">●</div><div class="am-m-lbl">Rank #4</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACCOUNTS TAB -->
+      <div class="tab-panel" id="pankit-accounts">
+        <div class="table-card">
+          <div class="tc-head">
+            <span class="tc-title">Account Universe — Team Pankit (Direct)</span>
+            <div class="tc-acts"><button class="tc-act">Sort: Gap ↓</button><button class="tc-act">Filter</button><button class="tc-act">Export</button></div>
+          </div>
+          <table>
+            <thead><tr>
+              <th>Company</th><th>AM</th><th class="r">OB (₹Cr)</th><th class="r">Facility (₹Cr)</th><th class="r">Util %</th><th class="r">Gap to 75%</th><th>Band</th><th>Status</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Alpha Tech Solutions</td><td>Pankit S.</td><td class="r">3.80</td><td class="r">5.00</td><td class="r">76</td><td class="r" style="color:var(--emerald)">—</td><td><span class="badge b-hi">≥75%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Bright Fabrics India</td><td>Sonal M.</td><td class="r">2.40</td><td class="r">4.00</td><td class="r">60</td><td class="r" style="color:var(--amber)">0.600</td><td><span class="badge b-mid">50–75%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Crystal Polymers</td><td>Pejush H.</td><td class="r">1.80</td><td class="r">3.50</td><td class="r">51</td><td class="r" style="color:var(--amber)">0.825</td><td><span class="badge b-mid">50–75%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Dynamic Infra</td><td>Kaustav D.</td><td class="r">4.50</td><td class="r">5.50</td><td class="r">82</td><td class="r" style="color:var(--emerald)">—</td><td><span class="badge b-hi">≥75%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Eco Plastics Ltd</td><td>Pankit S.</td><td class="r">0.90</td><td class="r">3.00</td><td class="r">30</td><td class="r" style="color:var(--crimson)">1.350</td><td><span class="badge b-lo">25–50%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Fine Chemicals Corp</td><td>Sonal M.</td><td class="r">0.00</td><td class="r">2.50</td><td class="r">0</td><td class="r" style="color:var(--crimson)">1.875</td><td><span class="badge b-zero">Zero OB</span></td><td><span class="badge b-inact">Wkbl Inactive</span></td></tr>
+              <tr><td>Global Traders Pvt</td><td>Pejush H.</td><td class="r">5.10</td><td class="r">6.00</td><td class="r">85</td><td class="r" style="color:var(--emerald)">—</td><td><span class="badge b-hi">≥75%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Horizon Packaging</td><td>Kaustav D.</td><td class="r">1.20</td><td class="r">4.00</td><td class="r">30</td><td class="r" style="color:var(--crimson)">1.800</td><td><span class="badge b-lo">25–50%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Indus Metals</td><td>Pankit S.</td><td class="r">3.20</td><td class="r">4.50</td><td class="r">71</td><td class="r" style="color:var(--amber)">0.175</td><td><span class="badge b-mid">50–75%</span></td><td><span class="badge b-act">Active</span></td></tr>
+              <tr><td>Jet Logistics Corp</td><td>Sonal M.</td><td class="r">0.00</td><td class="r">2.00</td><td class="r">0</td><td class="r" style="color:var(--crimson)">1.500</td><td><span class="badge b-zero">Zero OB</span></td><td><span class="badge b-inact">Wkbl Inactive</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div><!-- /view-pankit -->
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+// ── State ──
+let activeTeam = 'nikhil';
+let activeTabs = { nikhil: 'overview', pankit: 'overview' };
+
+// ── Team switch ──
+function switchTeam(team, btn) {
+  activeTeam = team;
+  document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['nikhil','pankit'].forEach(t => {
+    document.getElementById('view-' + t).classList.toggle('active', t === team);
+    document.getElementById('topbar-' + t).style.display = t === team ? 'flex' : 'none';
+    document.getElementById(t + '-ams').style.display = t === team ? 'block' : 'none';
+  });
+}
+
+// ── Tab switch ──
+function switchTab(team, tab, btn) {
+  activeTabs[team] = tab;
+  document.querySelectorAll('#tabs-' + team + ' .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#view-' + team + ' .tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(team + '-' + tab).classList.add('active');
+}
+
+// ── Window selector ──
+function selectWindow(el, win) {
+  document.querySelectorAll('.win-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── AM toggle ──
+function toggleAM(row) {
+  row.classList.toggle('sel');
+  row.querySelector('.am-cb').textContent = row.classList.contains('sel') ? '✓' : '';
+}
+
+// ── Charts ──
+const CHART_DEFAULTS = {
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280' } },
+    y: { grid: { color: '#F3F0EB' }, ticks: { font: { family: 'DM Mono', size: 10.5 }, color: '#6B7280' } }
+  }
+};
+
+// Portfolio quality donut
+new Chart(document.getElementById('donut-quality'), {
+  type: 'doughnut',
+  data: {
+    datasets: [{
+      data: [80.9, 13.2, 5.9],
+      backgroundColor: ['#0D6B52', '#B45309', '#991B1B'],
+      borderWidth: 0,
+      hoverOffset: 4
+    }]
+  },
+  options: {
+    cutout: '68%',
+    plugins: { legend: { display: false }, tooltip: {
+      callbacks: { label: ctx => ` ${['Clean','Overdue','NPA'][ctx.dataIndex]}: ${ctx.raw}%` }
+    }},
+    animation: { animateRotate: true, duration: 900 }
+  }
+});
+
+// Collections pipeline bar
+new Chart(document.getElementById('chart-collections-bar'), {
+  type: 'bar',
+  data: {
+    labels: ['This Week', 'Next Week', 'This Month', 'Next Month'],
+    datasets: [{
+      data: [18.3, 22.6, 41.7, 33.2],
+      backgroundColor: ['#C8960A', '#0F1F3D', '#1D4ED8', '#64748B'],
+      borderRadius: 5,
+      barThickness: 32
+    }]
+  },
+  options: {
+    ...CHART_DEFAULTS,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ₹${ctx.raw}Cr` } } },
+    scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, ticks: { ...CHART_DEFAULTS.scales.y.ticks, callback: v => '₹' + v } } }
+  }
+});
+
+// Overdue by AM
+new Chart(document.getElementById('chart-overdue-am'), {
+  type: 'bar',
+  data: {
+    labels: ['Nikhil S.','Darshan H.','Deepsayan D.','Ashitha N.','Asif A.'],
+    datasets: [
+      { label: 'Overdue', data: [1.6, 3.8, 2.1, 5.7, 0], backgroundColor: '#B45309', borderRadius: 4, stack: 'a' },
+      { label: 'NPA', data: [0, 0, 0, 3.4, 1.9], backgroundColor: '#991B1B', borderRadius: 4, stack: 'a' }
+    ]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: true, labels: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280', boxWidth: 10 } } },
+    scales: {
+      x: { grid: { color: '#F3F0EB' }, stacked: true, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#6B7280', callback: v => '₹'+v } },
+      y: { grid: { display: false }, stacked: true, ticks: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280' } }
+    }
+  }
+});
+
+// DPD bucket distribution
+new Chart(document.getElementById('chart-dpd-dist'), {
+  type: 'bar',
+  data: {
+    labels: ['0d','1–7d','8–30d','31–60d','61–90d','>90d'],
+    datasets: [{
+      data: [195, 0, 21, 9, 4, 11],
+      backgroundColor: ['#0D6B52','#64748B','#D97706','#B45309','#DC2626','#991B1B'],
+      borderRadius: 5,
+      barThickness: 28
+    }]
+  },
+  options: {
+    ...CHART_DEFAULTS,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw} accounts` } } }
+  }
+});
+
+// AM OB bar
+new Chart(document.getElementById('chart-am-ob'), {
+  type: 'bar',
+  data: {
+    labels: ['Nikhil S.','Darshan H.','Deepsayan D.','Ashitha N.','Asif A.'],
+    datasets: [{
+      data: [52.1, 41.3, 38.8, 29.4, 20.8],
+      backgroundColor: ['#4361EE','#7C3AED','#059669','#DC2626','#D97706'],
+      borderRadius: 5,
+      barThickness: 28
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ₹${ctx.raw}Cr` } } },
+    scales: {
+      x: { grid: { color: '#F3F0EB' }, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#6B7280', callback: v => '₹'+v } },
+      y: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280' } }
+    }
+  }
+});
+
+// AM WIRR bar
+new Chart(document.getElementById('chart-am-wirr'), {
+  type: 'bar',
+  data: {
+    labels: ['Nikhil S.','Darshan H.','Deepsayan D.','Ashitha N.','Asif A.'],
+    datasets: [{
+      data: [23.1, 22.7, 21.9, 20.8, 19.4],
+      backgroundColor: ctx => ctx.raw >= 22 ? '#0D6B52' : ctx.raw >= 20 ? '#D97706' : '#DC2626',
+      borderRadius: 5,
+      barThickness: 28
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.raw}%` } },
+      annotation: { annotations: { line1: { type: 'line', xMin: 20, xMax: 20, borderColor: '#DC2626', borderWidth: 1.5, borderDash: [4,3] } } }
+    },
+    scales: {
+      x: { min: 17, grid: { color: '#F3F0EB' }, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#6B7280', callback: v => v+'%' } },
+      y: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280' } }
+    }
+  }
+});
+
+// Pankit AM utilization
+new Chart(document.getElementById('chart-am-util'), {
+  type: 'bar',
+  data: {
+    labels: ['Pankit S.','Sonal M.','Pejush H.','Kaustav D.'],
+    datasets: [
+      { label: 'Utilization', data: [73, 70, 65, 62], backgroundColor: ['#0284C7','#7C3AED','#059669','#DC2626'], borderRadius: 5, barThickness: 36 },
+    ]
+  },
+  options: {
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.raw}%` } },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280' } },
+      y: { min: 50, max: 85, grid: { color: '#F3F0EB' }, ticks: { font: { family: 'DM Mono', size: 10.5 }, color: '#6B7280', callback: v => v+'%' } }
+    }
+  },
+  plugins: [{
+    afterDraw(chart) {
+      const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+      const yPos = y.getPixelForValue(75);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(left, yPos);
+      ctx.lineTo(right, yPos);
+      ctx.strokeStyle = '#C8960A';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.stroke();
+      ctx.fillStyle = '#C8960A';
+      ctx.font = '10px DM Mono';
+      ctx.fillText('75% target', right - 62, yPos - 5);
+      ctx.restore();
+    }
+  }]
+});
+
+// Origination vs repayments
+new Chart(document.getElementById('chart-orig-repaid'), {
+  type: 'bar',
+  data: {
+    labels: ['Pankit S.','Sonal M.','Pejush H.','Kaustav D.'],
+    datasets: [
+      { label: 'Origination', data: [8.4, 6.1, 5.3, 4.7], backgroundColor: '#1D4ED8', borderRadius: [5,5,0,0], barThickness: 18 },
+      { label: 'Repaid', data: [6.2, 4.8, 3.9, 3.1], backgroundColor: '#93C5FD', borderRadius: [5,5,0,0], barThickness: 18 }
+    ]
+  },
+  options: {
+    plugins: { legend: { display: true, labels: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280', boxWidth: 10 } }, tooltip: { callbacks: { label: ctx => ` ₹${ctx.raw}Cr` } } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 11 }, color: '#6B7280' } },
+      y: { grid: { color: '#F3F0EB' }, ticks: { font: { family: 'DM Mono', size: 10.5 }, color: '#6B7280', callback: v => '₹'+v } }
+    }
+  }
+});
+
+// Gap-to-75% ranking
+new Chart(document.getElementById('chart-gap-rank'), {
+  type: 'bar',
+  data: {
+    labels: ['Fine Chemicals','Nextgen Comp.','Horizon Pkg','Jet Logistics','Eco Plastics','Prime Agro','Crystal Poly','Bright Fabrics','Indus Metals'],
+    datasets: [{
+      data: [1.875, 2.250, 1.800, 1.500, 1.350, 1.500, 0.825, 0.600, 0.175],
+      backgroundColor: ctx => ctx.raw >= 1.5 ? '#991B1B' : ctx.raw >= 0.8 ? '#B45309' : '#D97706',
+      borderRadius: 5,
+      barThickness: 20
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ₹${ctx.raw}Cr gap` } } },
+    scales: {
+      x: { grid: { color: '#F3F0EB' }, ticks: { font: { family: 'DM Mono', size: 10 }, color: '#6B7280', callback: v => '₹'+v } },
+      y: { grid: { display: false }, ticks: { font: { family: 'DM Sans', size: 10.5 }, color: '#6B7280' } }
+    }
+  }
+});
+</script>
+</body>
+</html>
