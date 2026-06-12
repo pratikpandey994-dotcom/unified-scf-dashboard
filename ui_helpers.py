@@ -31,6 +31,10 @@ LIGHT_THEME = {
     "text":             "#1A1A1A",
     "muted":            "#6B7280",
     "faint":            "#9CA3AF",
+    # Accent carries selection/emphasis (tabs, pills, headings). Navy works on light only.
+    "accent":           "#0F1F3D",
+    "accent_text":      "#FFFFFF",
+    "heading":          "#0F1F3D",
     "sidebar_bg":       "#0F1F3D",
     "sidebar_text":     "rgba(255,255,255,0.82)",
     "sidebar_muted":    "rgba(255,255,255,0.35)",
@@ -49,13 +53,17 @@ DARK_THEME = {
     "text":             "#E5E7EB",
     "muted":            "#9CA3AF",
     "faint":            "#6B7280",
+    # On dark, navy is invisible — gold carries selection/emphasis instead.
+    "accent":           "#E3B341",
+    "accent_text":      "#0F1F3D",
+    "heading":          "#F3F4F6",
     "sidebar_bg":       "#0A0D14",
     "sidebar_text":     "rgba(255,255,255,0.80)",
     "sidebar_muted":    "rgba(255,255,255,0.32)",
     "sidebar_border":   "rgba(255,255,255,0.07)",
-    "pill_selected_bg":   "rgba(200,150,10,0.22)",
+    "pill_selected_bg":   "rgba(227,179,65,0.22)",
     "pill_selected_text": "#FCD34D",
-    "button_hover_bg":    "rgba(200,150,10,0.18)",
+    "button_hover_bg":    "rgba(227,179,65,0.18)",
     "button_hover_text":  "#FCD34D",
 }
 
@@ -67,11 +75,12 @@ PANEL_BG     = DARK_THEME["bg"]
 PAGE_BG      = DARK_THEME["bg"]
 TEXT         = DARK_THEME["text"]
 TEXT_MUTED   = DARK_THEME["muted"]
+HEADING      = DARK_THEME["heading"]
 
 
 def _apply_theme(theme_mode: str) -> dict[str, str]:
     theme = LIGHT_THEME if theme_mode == "Light" else DARK_THEME
-    global SURFACE, BORDER, SUBTLE_BORDER, PANEL_BG, PAGE_BG, TEXT, TEXT_MUTED
+    global SURFACE, BORDER, SUBTLE_BORDER, PANEL_BG, PAGE_BG, TEXT, TEXT_MUTED, HEADING
     SURFACE      = theme["card"]
     BORDER       = theme["border"]
     SUBTLE_BORDER = theme["border_soft"]
@@ -79,6 +88,7 @@ def _apply_theme(theme_mode: str) -> dict[str, str]:
     PAGE_BG      = theme["bg"]
     TEXT         = theme["text"]
     TEXT_MUTED   = theme["muted"]
+    HEADING      = theme["heading"]
     return theme
 
 
@@ -106,6 +116,9 @@ _CSS_TEMPLATE = """
   --scf-blue:        #1D4ED8;
   --scf-blue-bg:     #EFF6FF;
   --scf-indigo:      #4361EE;
+  --scf-accent:      TK_ACCENT;
+  --scf-accent-text: TK_ACCENT_TEXT;
+  --scf-heading:     TK_HEADING;
   --scf-pill-bg:     TK_PILL_BG;
   --scf-pill-text:   TK_PILL_TEXT;
   --scf-btn-bg:      TK_BTN_BG;
@@ -131,7 +144,7 @@ h1 {
   font-size: 1.55rem !important;
   font-weight: 800 !important;
   letter-spacing: 0.04em !important;
-  color: var(--scf-navy) !important;
+  color: var(--scf-heading) !important;
   line-height: 1.1 !important;
   margin-bottom: 0.15rem !important;
 }
@@ -254,9 +267,9 @@ div[role="radiogroup"] label {
   transition: all 0.15s;
 }
 div[role="radiogroup"] label:has(input:checked) {
-  border-color: var(--scf-navy);
-  background: var(--scf-navy);
-  color: #FFFFFF;
+  border-color: var(--scf-accent);
+  background: var(--scf-accent);
+  color: var(--scf-accent-text);
   font-weight: 600;
 }
 
@@ -264,7 +277,7 @@ div[role="radiogroup"] label:has(input:checked) {
 .scf-kpi {
   background: var(--scf-card);
   border: 1px solid var(--scf-border-soft);
-  border-top: 3px solid var(--accent, var(--scf-navy));
+  border-top: 3px solid var(--accent, var(--scf-accent));
   border-radius: 10px;
   padding: 14px 16px;
   min-height: 100px;
@@ -308,7 +321,7 @@ div[role="radiogroup"] label:has(input:checked) {
 [data-testid="stMetric"] {
   background: var(--scf-card);
   border: 1px solid var(--scf-border-soft);
-  border-top: 3px solid var(--scf-navy);
+  border-top: 3px solid var(--scf-accent);
   border-left: none;
   border-radius: 10px;
   padding: 14px 16px;
@@ -344,6 +357,11 @@ div[data-testid="stHorizontalBlock"] { gap: 0.88rem; }
   border-bottom: 1px solid var(--scf-border);
   padding: 0;
   margin-bottom: 0.5rem;
+  flex-wrap: wrap;          /* 10+ tabs: wrap instead of hiding behind a scroll */
+  overflow-x: visible !important;
+}
+.stTabs [data-baseweb="tab-list"] button[data-testid="stTabScrollButton"] {
+  display: none !important; /* no scroll arrows once tabs wrap */
 }
 .stTabs [data-baseweb="tab"] {
   font-family: 'DM Sans', sans-serif !important;
@@ -361,9 +379,9 @@ div[data-testid="stHorizontalBlock"] { gap: 0.88rem; }
   background: transparent !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"] {
-  font-weight: 600 !important;
-  color: var(--scf-navy) !important;
-  border-bottom: 2px solid var(--scf-navy) !important;
+  font-weight: 700 !important;
+  color: var(--scf-heading) !important;
+  border-bottom: 2px solid var(--scf-accent) !important;
 }
 .stTabs [data-baseweb="tab-highlight"] { display: none !important; }
 .stTabs [data-baseweb="tab-border"] { display: none !important; }
@@ -402,9 +420,9 @@ div[data-testid="stHorizontalBlock"] { gap: 0.88rem; }
 }
 .stButton > button:hover,
 [data-testid="stDownloadButton"] button:hover {
-  border-color: var(--scf-navy) !important;
-  background: var(--scf-navy) !important;
-  color: #FFFFFF !important;
+  border-color: var(--scf-accent) !important;
+  background: var(--scf-btn-bg) !important;
+  color: var(--scf-btn-text) !important;
 }
 
 /* ── Selectbox / Multiselect ── */
@@ -510,7 +528,7 @@ div[data-baseweb="input"] > div {
   justify-content: space-between;
   padding-bottom: 0.75rem;
   margin-bottom: 0.5rem;
-  border-bottom: 2px solid var(--scf-navy);
+  border-bottom: 2px solid var(--scf-accent);
 }
 .scf-page-title {
   font-family: 'Syne', sans-serif !important;
@@ -518,7 +536,7 @@ div[data-baseweb="input"] > div {
   font-weight: 800 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  color: var(--scf-navy) !important;
+  color: var(--scf-heading) !important;
 }
 .scf-page-tag {
   font-family: 'DM Sans', sans-serif;
@@ -560,7 +578,20 @@ div[data-baseweb="input"] > div {
   color: var(--scf-muted);
   font-size: 0.78rem;
 }
+TK_THEME_EXTRA
 </style>
+"""
+
+# Dark-only overrides: pastel badge/chip backgrounds read as glare on dark cards —
+# switch to translucent fills with bright text. Light mode keeps the originals.
+_DARK_EXTRA_CSS = """
+.scf-badge-clean, .scf-badge-high, .scf-chip-green { background: rgba(16,185,129,0.16); color: #6EE7B7; }
+.scf-badge-overdue, .scf-badge-mid, .scf-badge-suspended, .scf-chip-amber { background: rgba(245,158,11,0.16); color: #FCD34D; }
+.scf-badge-npa, .scf-badge-low, .scf-chip-red { background: rgba(239,68,68,0.16); color: #FCA5A5; }
+.scf-badge-active, .scf-chip-blue { background: rgba(59,130,246,0.16); color: #93C5FD; }
+.scf-badge-inactive, .scf-badge-zero { background: rgba(107,114,128,0.2); color: #D1D5DB; }
+.scf-badge-workable { background: rgba(139,92,246,0.16); color: #C4B5FD; }
+[data-testid="stAlertContainer"] { background: rgba(227,179,65,0.1) !important; color: var(--scf-text) !important; }
 """
 
 
@@ -585,6 +616,10 @@ def inject_visual_system(theme_mode: str = "Light") -> None:
         .replace("TK_PILL_TEXT",     theme["pill_selected_text"])
         .replace("TK_BTN_BG",       theme["button_hover_bg"])
         .replace("TK_BTN_TEXT",     theme["button_hover_text"])
+        .replace("TK_ACCENT_TEXT",  theme["accent_text"])
+        .replace("TK_ACCENT",       theme["accent"])
+        .replace("TK_HEADING",      theme["heading"])
+        .replace("TK_THEME_EXTRA",  _DARK_EXTRA_CSS if theme_mode != "Light" else "")
     )
     st.markdown(css, unsafe_allow_html=True)
 
@@ -718,7 +753,7 @@ def show_table(frame: pd.DataFrame, columns: list[str] | None = None, height: in
 # ── Chart base layout ────────────────────────────────────────────────────
 def base_layout(fig: go.Figure, title: str, height: int = 380) -> go.Figure:
     fig.update_layout(
-        title=dict(text=title, font=dict(size=13, color=NAVY, family="DM Sans"), x=0),
+        title=dict(text=title, font=dict(size=13, color=HEADING, family="DM Sans"), x=0),
         height=height,
         margin=dict(l=12, r=12, t=44, b=16),
         legend=dict(

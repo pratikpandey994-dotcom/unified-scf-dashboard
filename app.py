@@ -84,6 +84,10 @@ try:
         if data_mode == "Demo data"
         else load_data(as_of=str(today_value), **{k: v for k, v in uploads.items() if v is not None})
     )
+    if not {"master", "invoices", "ob_history"} <= set(raw):
+        # Cached result from a pre-migration loader (old five-file schema) — heal and rerun.
+        st.cache_data.clear()
+        st.rerun()
     accounts_all, invoices_all, ob_pivot = build_portfolio(
         raw["master"],
         raw["invoices"],
