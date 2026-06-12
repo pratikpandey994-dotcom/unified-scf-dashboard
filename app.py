@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import os
 from datetime import date
 
 import pandas as pd
 import streamlit as st
 
-from data_loader import DEFAULT_FILES, load_data, load_demo_data
+from data_loader import FILE_PATTERNS, default_files_found, load_data, load_demo_data
 from dashboard_metrics import (
     TEAMS,
     apply_filters,
@@ -38,6 +37,7 @@ from views_pankit import (
     render_75_engine,
     render_opportunity_views,
 )
+from views_common import render_insights
 
 
 st.set_page_config(
@@ -57,8 +57,8 @@ with st.sidebar:
     st.radio("Theme", ["Light", "Dark"], index=0 if theme_mode == "Light" else 1, key="theme_mode", horizontal=True)
 
     # Default to Demo data when local extracts aren't present (e.g. Streamlit Cloud).
-    _has_local_files = all(os.path.exists(p) for p in DEFAULT_FILES.values())
-    _default_src = 0 if _has_local_files else 1
+    _found = default_files_found()
+    _default_src = 0 if all(_found.values()) else 1
     st.header("Data Source")
     data_mode = st.radio("Source", ["Real files", "Demo data"], index=_default_src, key="data_mode")
     uploads: dict[str, object] = {}
@@ -67,16 +67,14 @@ with st.sidebar:
     else:
         use_uploads = st.toggle("Upload files manually", value=False)
         if use_uploads:
-            uploads["master_file"] = st.file_uploader("Master file", type=["xlsx", "xls"], key="master_file")
-            uploads["view1_file"] = st.file_uploader("View 1", type=["xlsx", "xls"], key="view1_file")
-            uploads["view2_file"] = st.file_uploader("View 2", type=["xlsx", "xls"], key="view2_file")
-            uploads["historic_ob_file"] = st.file_uploader("Historic OB", type=["xlsx", "xls"], key="historic_ob_file")
-            uploads["current_ob_file"] = st.file_uploader("Current OB", type=["xlsx", "xls"], key="current_ob_file")
-        with st.expander("Default file paths"):
-            for label, path in DEFAULT_FILES.items():
-                st.caption(f"{label}: {path}")
+            uploads["master_file"] = st.file_uploader("Master data — client level", type=["xlsx", "xls"], key="master_file")
+            uploads["invoice_file"] = st.file_uploader("Invoice level data", type=["xlsx", "xls"], key="invoice_file")
+        with st.expander("Auto-detected files (newest match in Downloads)"):
+            for kind, pattern in FILE_PATTERNS.items():
+                found = _found.get(kind)
+                st.caption(f"{pattern}: {found.name if found else '— not found —'}")
 
-    today_value = st.date_input("As of date", value=date(2026, 6, 5), key="as_of_date")
+    today_value = st.date_input("As of date", value=date(2026, 6, 11), key="as_of_date")
 
 
 # ---------------------------------------------------------------- Data load ----
@@ -84,12 +82,11 @@ try:
     raw = (
         load_demo_data()
         if data_mode == "Demo data"
-        else (load_data(**uploads) if any(uploads.values()) else load_data())
+        else load_data(as_of=str(today_value), **{k: v for k, v in uploads.items() if v is not None})
     )
     accounts_all, invoices_all, ob_pivot = build_portfolio(
         raw["master"],
-        raw["view1"],
-        raw["view2"],
+        raw["invoices"],
         raw["ob_history"],
         pd.Timestamp(today_value),
     )
@@ -158,7 +155,7 @@ if team_name == "Team Nikhil":
     st.caption("CP pod · Utilization = Facility + Overdraft")
     tabs = st.tabs([
         "Overview", "Portfolio Quality", "Team", "Risk & Health",
-        "Collections", "Account Pulse", "Peak Movement", "CP Health", "Tracker",
+        "Collections", "Account Pulse", "Peak Movement", "CP Health", "Tracker", "Insights",
     ])
     with tabs[0]:
         render_snapshot(accounts, invoices)
@@ -178,13 +175,15 @@ if team_name == "Team Nikhil":
         render_cp_health(accounts_all, invoices_all, today)
     with tabs[8]:
         render_tracker(accounts, invoices, today, cfg)
+    with tabs[9]:
+        render_insights(accounts, invoices, today, cfg)
 
 else:
     st.caption("Direct sales · Utilization = Facility only")
     tabs = st.tabs([
         "Overview", "Inventory", "Utilization", "Zero OB",
         "Workable Inactive", "Repayments", "OB Dent",
-        "AM Performance", "75% Engine", "Opportunity",
+        "AM Performance", "75% Engine", "Opportunity", "Insights",
     ])
     with tabs[0]:
         render_executive(accounts, team_accounts, team_invoices, ob_pivot, cfg)
@@ -206,3 +205,5 @@ else:
         render_75_engine(accounts)
     with tabs[9]:
         render_opportunity_views(team_accounts, selected_am, cfg)
+    with tabs[10]:
+        render_insights(accounts, invoices, today, cfg)

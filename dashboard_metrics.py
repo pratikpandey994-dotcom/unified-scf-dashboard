@@ -26,8 +26,8 @@ EXCLUDED_STAGES = {"partadvanced", "processing", "deposit_pending", "pending_adv
 
 IN_TARGET_TYPES = {"Active Workable", "Suspended Workable"}
 
-# Historical OB file covers dates before this cutoff; the current OB file covers dates on/after it.
-CURRENT_OB_CUTOFF = pd.Timestamp("2026-05-01")
+# Window (days) for "OB movement" style start-vs-end comparisons on the reconstructed history.
+MOVEMENT_WINDOW_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class TeamConfig:
     label: str
     leader: str
     ams: list[str]
-    scope: str  # "am_only" (Nikhil pod rule) or "direct" (AM list + Partner == Direct)
+    scope: str  # "am_only" (Nikhil pod rule) or "direct" (AM list + TYPE == DIRECT)
     include_overdraft: bool  # utilization / 75% denominator includes overdraft?
 
 
@@ -55,13 +55,6 @@ TEAMS = {
         include_overdraft=False,
     ),
 }
-
-
-def _first_valid(*values):
-    for value in values:
-        if pd.notna(value) and str(value).strip() not in {"", "nan", "None"}:
-            return value
-    return None
 
 
 def _classify_level(broad_status: str, utilization_status: str, days_since: float | None) -> str:
@@ -110,64 +103,23 @@ def _snapshot_on_or_before(ob_pivot: pd.DataFrame, target: pd.Timestamp) -> pd.S
 
 def build_portfolio(
     master: pd.DataFrame,
-    view1: pd.DataFrame,
-    view2: pd.DataFrame,
+    invoices_raw: pd.DataFrame,
     ob_history: pd.DataFrame,
     today: pd.Timestamp,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    rows: list[dict] = []
+    """Account + invoice frames from the canonical loader output (Jun-11 two-file schema)."""
     today = pd.Timestamp(today)
-
-    if "buyer_lower" not in view2.columns and "Buyer" in view2.columns:
-        view2 = view2.copy()
-        view2["buyer_lower"] = view2["Buyer"].astype(str).str.casefold()
-
-    for _, row in master.iterrows():
-        account_id = row["Buyer_ID"]
-        v1_row = view1.loc[account_id] if account_id in view1.index else pd.Series(dtype=object)
-        am = str(_first_valid(v1_row.get("AM_Name"), row.get("AM"), "Unassigned")).strip()
-        last_disb = _first_valid(v1_row.get("Last_Disbursed_Date"), row.get("Last_Disbursed_Date"))
-        first_disb = _first_valid(v1_row.get("First_Disbursed_Date"), row.get("First_Disbursed_Date"))
-        last_disb = pd.Timestamp(last_disb) if pd.notna(last_disb) else pd.NaT
-        first_disb = pd.Timestamp(first_disb) if pd.notna(first_disb) else pd.NaT
-        days_since = int((today - last_disb).days) if pd.notna(last_disb) else None
-
-        facility = float(_first_valid(v1_row.get("Facility_Size"), row.get("Facility_Size"), 0) or 0)
-        overdraft = float(_first_valid(v1_row.get("overdraft_limit"), row.get("Overdraft_Limit"), 0) or 0)
-        total_facility = facility + overdraft
-        ob = float(_first_valid(v1_row.get("Outstanding_Balance"), row.get("OB"), 0) or 0)
-        ob = max(ob, 0.0)  # master/OB extracts contain tiny negative float residues
-        irr = float(_first_valid(v1_row.get("Signed-up IRR"), row.get("Signed_up_IRR"), 0) or 0)
-
-        partner = str(row.get("Partner", "") or "").strip()
-        v1_util_status = str(v1_row.get("utilization_status", "") or "").strip().casefold()
-        level = _classify_level(row.get("Broad_Account_Status", ""), v1_util_status, days_since)
-        rows.append(
-            {
-                "id": account_id,
-                "company": row["Buyer"],
-                "buyer_lower": str(row["Buyer"]).casefold(),
-                "am": am,
-                "partner": partner,
-                "team": str(row.get("Team", "") or "").strip(),
-                "raw_status": row.get("Account_Status", ""),
-                "broad_status": str(row.get("Broad_Account_Status", "") or "").strip(),
-                "util_status": v1_util_status,
-                "account_type": level,
-                "facility": facility,
-                "overdraft": overdraft,
-                "total_facility": total_facility,
-                "ob": ob,
-                "irr": irr,
-                "first_disbursed": first_disb,
-                "last_disbursed": last_disb,
-                "days_since_last": days_since,
-            }
-        )
-
-    accounts = pd.DataFrame(rows)
+    accounts = master.copy()
     if accounts.empty:
-        return accounts, view2.iloc[0:0].copy(), pd.DataFrame()
+        return accounts, invoices_raw.iloc[0:0].copy(), pd.DataFrame()
+
+    days = (today - accounts["last_disbursed"]).dt.days
+    accounts["days_since_last"] = days.astype("Float64")
+    accounts["account_type"] = [
+        _classify_level(broad, util, d)
+        for broad, util, d in zip(accounts["broad_status"], accounts["util_status"], days)
+    ]
+    accounts["buyer_lower"] = accounts["company"].astype(str).str.casefold()
 
     account_ids = set(accounts["id"])
     ob_pivot = pd.DataFrame()
@@ -197,12 +149,12 @@ def build_portfolio(
     accounts["ob_dent_30d_pct"] = np.where(accounts["ob_30d"] > 0, accounts["ob_dent_30d"] / accounts["ob_30d"], 0)
     accounts["ob_dent_30d_pct_display"] = accounts["ob_dent_30d_pct"] * 100
 
-    invoice_lookup = accounts.drop_duplicates("buyer_lower", keep="first")
-    invoice_map = invoice_lookup.set_index("buyer_lower")[["id", "am", "account_type"]].to_dict("index")
-    invoices = view2[view2["buyer_lower"].isin(invoice_map)].copy()
-    invoices["account_id"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["id"])
-    invoices["am"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["am"])
-    invoices["account_type"] = invoices["buyer_lower"].map(lambda key: invoice_map[key]["account_type"])
+    # Invoices join by account ID (the Jun-11 extract carries IMPORTER_USER_ID — the old
+    # name-based join and its duplicate-company hazard are retired). AM comes from the account.
+    acct_index = accounts.set_index("id")
+    invoices = invoices_raw[invoices_raw["account_id"].isin(acct_index.index)].copy()
+    invoices["am"] = invoices["account_id"].map(acct_index["am"])
+    invoices["account_type"] = invoices["account_id"].map(acct_index["account_type"])
 
     month_start, _ = get_window("mtd", today)
     accounts["mtd_repayments"] = accounts["id"].map(repayments_by_account(invoices, month_start, today)).fillna(0)
@@ -255,15 +207,16 @@ def due_by_account(invoices: pd.DataFrame, start: pd.Timestamp, end: pd.Timestam
 
 
 def filter_team(accounts: pd.DataFrame, team_name: str) -> pd.DataFrame:
-    """Team segmentation per the original dashboards (decisions 2026-06-10):
-    - Team Nikhil: account's AM in the pod AM list. No partner filter (HTML pod rule).
-    - Team Pankit: account's AM in the team AM list AND Partner == 'Direct'.
+    """Team segmentation (decisions 2026-06-10, re-mapped to the Jun-11 schema):
+    - Team Nikhil: account's AM in the pod AM list. No type filter (HTML pod rule).
+    - Team Pankit: account's AM in the team AM list AND TYPE == 'DIRECT'
+      (the old Partner=='Direct' rule; the consolidated master carries TYPE instead).
     Then recompute utilization/75% columns with the team's denominator
     (Nikhil: facility + overdraft, Pankit: facility only)."""
     cfg = TEAMS[team_name]
     filtered = accounts[accounts["am"].isin(cfg.ams)]
     if cfg.scope == "direct":
-        filtered = filtered[filtered["partner"].str.casefold() == "direct"]
+        filtered = filtered[filtered["type"].astype(str).str.upper() == "DIRECT"]
     filtered = filtered.copy()
 
     denom = filtered["total_facility"] if cfg.include_overdraft else filtered["facility"]
@@ -459,8 +412,9 @@ def ob_trend_by_am(ob_pivot: pd.DataFrame, accounts: pd.DataFrame) -> pd.DataFra
 
 
 def cp_universe(accounts: pd.DataFrame) -> pd.DataFrame:
-    """View G universe: Team == 'CP' and Partner != 'Direct', ALL AMs (ignores team/AM filters)."""
-    cp = accounts[(accounts["team"] == "CP") & (accounts["partner"].str.casefold() != "direct")].copy()
+    """View G universe: TYPE == 'CP', ALL AMs (ignores team/AM filters).
+    `partner` is the CP_COMPANY name from the consolidated master."""
+    cp = accounts[accounts["type"].astype(str).str.upper() == "CP"].copy()
     cp["util_denom"] = cp["total_facility"]
     cp["utilization"] = np.where(cp["total_facility"] > 0, (cp["ob"] / cp["total_facility"]).clip(0, 1), 0.0)
     cp["utilization_pct"] = cp["utilization"] * 100

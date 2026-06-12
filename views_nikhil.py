@@ -14,7 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard_metrics import (
-    CURRENT_OB_CUTOFF,
+    MOVEMENT_WINDOW_DAYS,
     EXCLUDED_STAGES,
     IN_TARGET_TYPES,
     NIKHIL_AM_COLORS,
@@ -318,20 +318,18 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
                ["company", "am", "util_denom", "ob", "peak_ob", "peak_ob_date", "days_since_last"], height=320)
 
     st.markdown("#### Alerts — Unassigned CP Accounts")
-    if not master_raw.empty and "Team" in master_raw.columns:
-        base_mask = (
-            (master_raw["Team"].astype(str).str.strip() == "CP")
-            & master_raw["First_Disbursed_Date"].notna()
-            & (master_raw["AM"].isna() | (master_raw["AM"].astype(str).str.strip().isin(["", "nan"])))
-        )
-        if "utilization_status" in master_raw.columns:
-            base_mask &= master_raw["utilization_status"].astype(str).str.strip() == "active"
-        unassigned = master_raw[base_mask]
+    if not master_raw.empty and "type" in master_raw.columns:
+        unassigned = master_raw[
+            (master_raw["type"].astype(str).str.upper() == "CP")
+            & (master_raw["util_status"].astype(str) == "active")
+            & master_raw["first_disbursed"].notna()
+            & master_raw["am"].astype(str).isin(["", "nan", "Unassigned"])
+        ]
         if unassigned.empty:
             st.caption("No unassigned active CP accounts. ✅")
         else:
             st.warning(f"{len(unassigned)} active CP account(s) without an AM")
-            st.dataframe(unassigned[["Buyer", "Partner", "First_Disbursed_Date", "OB"]],
+            st.dataframe(unassigned[["company", "partner", "first_disbursed", "ob"]],
                          use_container_width=True, hide_index=True)
 
 
@@ -426,6 +424,8 @@ def render_peak(accounts: pd.DataFrame, invoices: pd.DataFrame, ob_pivot: pd.Dat
     trend = ob_trend(ob_pivot, ids)
 
     st.markdown("#### OB Trend")
+    st.caption("Invoice-derived OB (advance basis): origination held from advance to settlement. "
+               "Faithful for shape and peaks; levels run ~5-15% above master OB.")
     t1, t2 = st.columns(2)
     mode = t1.radio("Mode", ["Portfolio Total", "Per AM"], horizontal=True, key="nik_peak_mode")
     window = t2.radio("Window", ["3M", "6M", "12M", "All history"], horizontal=True, index=2, key="nik_peak_window")
@@ -762,9 +762,9 @@ def render_portfolio(accounts: pd.DataFrame, invoices: pd.DataFrame, invoices_te
                 columns=2,
             )
 
-    section_header("OB Movement per AM", "Current OB file window")
+    section_header("OB Movement per AM", f"Last {MOVEMENT_WINDOW_DAYS} days, invoice-derived OB (advance basis)")
     if not ob_pivot.empty:
-        current = ob_pivot[ob_pivot.index >= CURRENT_OB_CUTOFF]
+        current = ob_pivot[ob_pivot.index >= ob_pivot.index.max() - pd.Timedelta(days=MOVEMENT_WINDOW_DAYS)]
         movers = accounts[~accounts["account_type"].isin({"NWA", "Workable >365"})]
         if not current.empty and not movers.empty:
             cols_present = [c_ for c_ in current.columns if c_ in set(movers["id"])]

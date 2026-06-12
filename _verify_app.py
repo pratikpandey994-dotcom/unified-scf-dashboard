@@ -23,8 +23,8 @@ def check(at: AppTest, label: str) -> None:
 
 at = AppTest.from_file("app.py", default_timeout=600)
 at.run()
-check(at, "default-load (Team Nikhil, all 9 tabs render)")
-assert len(at.tabs) == 9, f"expected 9 Nikhil tabs, got {len(at.tabs)}"
+check(at, "default-load (Team Nikhil, all 10 tabs render)")
+assert len(at.tabs) == 10, f"expected 10 Nikhil tabs, got {len(at.tabs)}"
 
 at.radio(key="theme_mode").set_value("Dark")
 at.run()
@@ -71,8 +71,8 @@ exercise_am_filter(at, "Team Nikhil")
 # ---- Team Pankit -------------------------------------------------------------
 at.radio(key="team_name").set_value("Team Pankit")
 at.run()
-check(at, "team-switch (Team Pankit, all 10 tabs render)")
-assert len(at.tabs) == 10, f"expected 10 Pankit tabs, got {len(at.tabs)}"
+check(at, "team-switch (Team Pankit, all 11 tabs render)")
+assert len(at.tabs) == 11, f"expected 11 Pankit tabs, got {len(at.tabs)}"
 
 exercise_am_filter(at, "Team Pankit")
 

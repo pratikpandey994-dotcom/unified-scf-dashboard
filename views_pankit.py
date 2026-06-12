@@ -310,9 +310,10 @@ def render_executive(accounts: pd.DataFrame, accounts_team: pd.DataFrame, invoic
             fig.add_hline(y=recent["ob"].iloc[-1], line_dash="dash", line_color=POSITIVE,
                           annotation_text=f"Today {fmt_money(recent['ob'].iloc[-1])}")
             fig.update_yaxes(tickprefix="$")
-            st.plotly_chart(base_layout(fig, "Portfolio OB Trend (last 90 days)"), use_container_width=True)
+            st.plotly_chart(base_layout(fig, "Portfolio OB Trend (last 90 days, invoice-derived)"), use_container_width=True)
+            st.caption("Invoice-derived OB (advance basis): origination held from advance to settlement.")
         else:
-            st.info("Upload OB files to enable the trend.")
+            st.info("No invoice history available to derive the trend.")
     with c2:
         perf = _am_perf(accounts_team, invoices_team, cfg)
         fig = go.Figure(go.Bar(
