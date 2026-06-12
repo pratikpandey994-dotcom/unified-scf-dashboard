@@ -61,14 +61,9 @@ with st.sidebar:
     _default_src = 0 if all(_found.values()) else 1
     st.header("Data Source")
     data_mode = st.radio("Source", ["Real files", "Demo data"], index=_default_src, key="data_mode")
-    uploads: dict[str, object] = {}
     if data_mode == "Demo data":
         st.info("Demo mode uses synthetic data for UI review.")
     else:
-        use_uploads = st.toggle("Upload files manually", value=False)
-        if use_uploads:
-            uploads["master_file"] = st.file_uploader("Master data — client level", type=["xlsx", "xls"], key="master_file")
-            uploads["invoice_file"] = st.file_uploader("Invoice level data", type=["xlsx", "xls"], key="invoice_file")
         with st.expander("Auto-detected files (newest match in Downloads)"):
             for kind, pattern in FILE_PATTERNS.items():
                 found = _found.get(kind)
@@ -79,11 +74,7 @@ with st.sidebar:
 
 # ---------------------------------------------------------------- Data load ----
 try:
-    raw = (
-        load_demo_data()
-        if data_mode == "Demo data"
-        else load_data(as_of=str(today_value), **{k: v for k, v in uploads.items() if v is not None})
-    )
+    raw = load_demo_data() if data_mode == "Demo data" else load_data(as_of=str(today_value))
     if not {"master", "invoices", "ob_history"} <= set(raw):
         # Cached result from a pre-migration loader (old five-file schema) — heal and rerun.
         st.cache_data.clear()

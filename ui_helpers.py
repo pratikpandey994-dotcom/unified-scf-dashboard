@@ -22,49 +22,57 @@ AMBER_WARM  = "#B45309"
 CRIMSON     = "#991B1B"
 BLUE_ROYAL  = "#1D4ED8"
 
+# Palettes ported from the am-dashboard "Nexus Design System" (am-dashboard-repo/index.html).
+# Fonts (Syne/DM Sans/DM Mono) and chart series colors are deliberately NOT taken from it.
 LIGHT_THEME = {
-    "bg":               "#F5F4EF",
-    "card":             "#FFFFFF",
-    "card_soft":        "#FAF9F5",
-    "border":           "#E8E4DC",
-    "border_soft":      "#EDE8DF",
-    "text":             "#1A1A1A",
-    "muted":            "#6B7280",
-    "faint":            "#9CA3AF",
-    # Accent carries selection/emphasis (tabs, pills, headings). Navy works on light only.
-    "accent":           "#0F1F3D",
-    "accent_text":      "#FFFFFF",
-    "heading":          "#0F1F3D",
-    "sidebar_bg":       "#0F1F3D",
-    "sidebar_text":     "rgba(255,255,255,0.82)",
-    "sidebar_muted":    "rgba(255,255,255,0.35)",
-    "sidebar_border":   "rgba(255,255,255,0.08)",
-    "pill_selected_bg":   "#0F1F3D",
-    "pill_selected_text": "#FFFFFF",
-    "button_hover_bg":    "#0F1F3D",
-    "button_hover_text":  "#FFFFFF",
+    "bg":               "#f4f3ef",   # warm beige body
+    "card":             "#ffffff",
+    "card_soft":        "#f9f8f6",
+    "border":           "#e2e8f0",
+    "border_soft":      "#e9edf3",
+    "text":             "#2d3748",
+    "muted":            "#718096",
+    "faint":            "#a0aec0",
+    "accent":           "#008080",   # teal primary
+    "accent_text":      "#ffffff",
+    "heading":          "#2d3748",
+    "sidebar_bg":       "#ffffff",   # Nexus sidebar = surface
+    "sidebar_text":     "#2d3748",
+    "sidebar_muted":    "#718096",
+    "sidebar_border":   "#e2e8f0",
+    "sidebar_widget_bg":     "rgba(45,55,72,0.04)",
+    "sidebar_widget_border": "#e2e8f0",
+    "sidebar_alert_bg":      "#e0f2f1",  # primary-light
+    "sidebar_alert_text":    "#006666",
+    "pill_selected_bg":   "#e0f2f1",
+    "pill_selected_text": "#008080",
+    "button_hover_bg":    "#006666",
+    "button_hover_text":  "#ffffff",
 }
 DARK_THEME = {
-    "bg":               "#0D1117",
-    "card":             "#161C24",
-    "card_soft":        "#0F1520",
-    "border":           "#2D333B",
-    "border_soft":      "#2D333B",
-    "text":             "#E5E7EB",
-    "muted":            "#9CA3AF",
-    "faint":            "#6B7280",
-    # On dark, navy is invisible — gold carries selection/emphasis instead.
-    "accent":           "#E3B341",
-    "accent_text":      "#0F1F3D",
-    "heading":          "#F3F4F6",
-    "sidebar_bg":       "#0A0D14",
-    "sidebar_text":     "rgba(255,255,255,0.80)",
-    "sidebar_muted":    "rgba(255,255,255,0.32)",
-    "sidebar_border":   "rgba(255,255,255,0.07)",
-    "pill_selected_bg":   "rgba(227,179,65,0.22)",
-    "pill_selected_text": "#FCD34D",
-    "button_hover_bg":    "rgba(227,179,65,0.18)",
-    "button_hover_text":  "#FCD34D",
+    "bg":               "#1a202c",
+    "card":             "#2d3748",   # dark charcoal surface
+    "card_soft":        "#27303f",
+    "border":           "#4a5568",
+    "border_soft":      "#3d4858",
+    "text":             "#f7fafc",
+    "muted":            "#a0aec0",
+    "faint":            "#718096",
+    "accent":           "#4fd1c5",   # bright teal on dark
+    "accent_text":      "#1a202c",
+    "heading":          "#f7fafc",
+    "sidebar_bg":       "#2d3748",
+    "sidebar_text":     "rgba(255,255,255,0.85)",
+    "sidebar_muted":    "rgba(255,255,255,0.40)",
+    "sidebar_border":   "#4a5568",
+    "sidebar_widget_bg":     "rgba(255,255,255,0.07)",
+    "sidebar_widget_border": "rgba(255,255,255,0.15)",
+    "sidebar_alert_bg":      "#234e52",  # primary-light (dark)
+    "sidebar_alert_text":    "#4fd1c5",
+    "pill_selected_bg":   "#234e52",
+    "pill_selected_text": "#4fd1c5",
+    "button_hover_bg":    "#234e52",
+    "button_hover_text":  "#4fd1c5",
 }
 
 # Module-level globals updated by _apply_theme
@@ -76,11 +84,12 @@ PAGE_BG      = DARK_THEME["bg"]
 TEXT         = DARK_THEME["text"]
 TEXT_MUTED   = DARK_THEME["muted"]
 HEADING      = DARK_THEME["heading"]
+IS_LIGHT     = False
 
 
 def _apply_theme(theme_mode: str) -> dict[str, str]:
     theme = LIGHT_THEME if theme_mode == "Light" else DARK_THEME
-    global SURFACE, BORDER, SUBTLE_BORDER, PANEL_BG, PAGE_BG, TEXT, TEXT_MUTED, HEADING
+    global SURFACE, BORDER, SUBTLE_BORDER, PANEL_BG, PAGE_BG, TEXT, TEXT_MUTED, HEADING, IS_LIGHT
     SURFACE      = theme["card"]
     BORDER       = theme["border"]
     SUBTLE_BORDER = theme["border_soft"]
@@ -89,6 +98,7 @@ def _apply_theme(theme_mode: str) -> dict[str, str]:
     TEXT         = theme["text"]
     TEXT_MUTED   = theme["muted"]
     HEADING      = theme["heading"]
+    IS_LIGHT     = theme_mode == "Light"
     return theme
 
 
@@ -196,23 +206,23 @@ small, .small { font-size: 0.78rem; color: var(--scf-muted); }
 [data-testid="stSidebar"] [data-testid="stVerticalBlock"] > * + * {
   margin-top: 0.1rem;
 }
-/* Sidebar radio pills on dark */
+/* Sidebar radio pills */
 [data-testid="stSidebar"] div[role="radiogroup"] label {
-  background: rgba(255,255,255,0.07) !important;
-  border: 1px solid rgba(255,255,255,0.12) !important;
+  background: TK_SB_WIDGET_BG !important;
+  border: 1px solid TK_SB_WIDGET_BORDER !important;
   color: TK_SIDEBAR_TEXT !important;
   border-radius: 999px;
 }
 [data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
-  background: var(--scf-gold) !important;
-  border-color: var(--scf-gold) !important;
-  color: var(--scf-navy) !important;
+  background: var(--scf-pill-bg) !important;
+  border-color: var(--scf-accent) !important;
+  color: var(--scf-pill-text) !important;
   font-weight: 700 !important;
 }
 /* Sidebar selectbox / multiselect */
 [data-testid="stSidebar"] [data-baseweb="select"] > div {
-  background: rgba(255,255,255,0.07) !important;
-  border-color: rgba(255,255,255,0.15) !important;
+  background: TK_SB_WIDGET_BG !important;
+  border-color: TK_SB_WIDGET_BORDER !important;
   color: TK_SIDEBAR_TEXT !important;
   border-radius: 8px;
 }
@@ -229,8 +239,8 @@ small, .small { font-size: 0.78rem; color: var(--scf-muted); }
 }
 /* Sidebar date input */
 [data-testid="stSidebar"] [data-baseweb="input"] > div {
-  background: rgba(255,255,255,0.07) !important;
-  border-color: rgba(255,255,255,0.15) !important;
+  background: TK_SB_WIDGET_BG !important;
+  border-color: TK_SB_WIDGET_BORDER !important;
   border-radius: 8px;
 }
 [data-testid="stSidebar"] [data-baseweb="input"] input {
@@ -243,12 +253,12 @@ small, .small { font-size: 0.78rem; color: var(--scf-muted); }
 }
 /* Sidebar info box */
 [data-testid="stSidebar"] [data-testid="stAlertContainer"] {
-  background: rgba(200,150,10,0.15) !important;
-  border: 1px solid rgba(200,150,10,0.3) !important;
-  color: #FCD34D !important;
+  background: TK_SB_ALERT_BG !important;
+  border: 1px solid var(--scf-accent) !important;
+  color: TK_SB_ALERT_TEXT !important;
 }
 [data-testid="stSidebar"] [data-testid="stAlertContainer"] p {
-  color: #FCD34D !important;
+  color: TK_SB_ALERT_TEXT !important;
 }
 
 /* ── Team radio (main area) ── */
@@ -591,7 +601,7 @@ _DARK_EXTRA_CSS = """
 .scf-badge-active, .scf-chip-blue { background: rgba(59,130,246,0.16); color: #93C5FD; }
 .scf-badge-inactive, .scf-badge-zero { background: rgba(107,114,128,0.2); color: #D1D5DB; }
 .scf-badge-workable { background: rgba(139,92,246,0.16); color: #C4B5FD; }
-[data-testid="stAlertContainer"] { background: rgba(227,179,65,0.1) !important; color: var(--scf-text) !important; }
+[data-testid="stAlertContainer"] { background: rgba(79,209,197,0.1) !important; color: var(--scf-text) !important; }
 """
 
 
@@ -619,6 +629,10 @@ def inject_visual_system(theme_mode: str = "Light") -> None:
         .replace("TK_ACCENT_TEXT",  theme["accent_text"])
         .replace("TK_ACCENT",       theme["accent"])
         .replace("TK_HEADING",      theme["heading"])
+        .replace("TK_SB_WIDGET_BG",     theme["sidebar_widget_bg"])
+        .replace("TK_SB_WIDGET_BORDER", theme["sidebar_widget_border"])
+        .replace("TK_SB_ALERT_BG",      theme["sidebar_alert_bg"])
+        .replace("TK_SB_ALERT_TEXT",    theme["sidebar_alert_text"])
         .replace("TK_THEME_EXTRA",  _DARK_EXTRA_CSS if theme_mode != "Light" else "")
     )
     st.markdown(css, unsafe_allow_html=True)
@@ -771,12 +785,12 @@ def base_layout(fig: go.Figure, title: str, height: int = 380) -> go.Figure:
         ),
     )
     fig.update_yaxes(
-        gridcolor="#F3F0EB" if TEXT == "#1A1A1A" else "rgba(255,255,255,0.07)",
+        gridcolor="rgba(45,55,72,0.08)" if IS_LIGHT else "rgba(255,255,255,0.07)",
         zeroline=False,
         tickfont=dict(color=TEXT_MUTED, size=11, family="DM Mono"),
     )
     fig.update_xaxes(
-        gridcolor="#F3F0EB" if TEXT == "#1A1A1A" else "rgba(255,255,255,0.06)",
+        gridcolor="rgba(45,55,72,0.08)" if IS_LIGHT else "rgba(255,255,255,0.06)",
         zeroline=False,
         tickfont=dict(color=TEXT_MUTED, size=11, family="DM Sans"),
     )

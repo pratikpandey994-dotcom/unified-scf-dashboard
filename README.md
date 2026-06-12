@@ -37,7 +37,8 @@ from invoices**: origination held from advance date to settlement date. Validate
 open-invoice outstanding; charts are labeled "invoice-derived (advance basis)". See
 `docs/DATA_MIGRATION_2026-06-11.md` for the full mapping and decision log.
 
-Manual uploads are available from the sidebar. For UI testing, switch `Source` to `Demo data`.
+For UI testing, switch `Source` to `Demo data`. Theme palettes (light warm-beige / dark charcoal,
+teal accent) are ported from the am-dashboard Nexus design system; fonts and chart series colors are this app's own.
 
 ## Team Logic (agreed 2026-06-10, re-mapped 2026-06-12)
 
