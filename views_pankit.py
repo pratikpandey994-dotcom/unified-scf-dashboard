@@ -25,7 +25,6 @@ from ui_helpers import (
     POSITIVE,
     WARNING,
     base_layout,
-    chip,
     fmt_irr,
     fmt_money,
     fmt_pct,
@@ -61,32 +60,6 @@ def _am_perf(accounts: pd.DataFrame, invoices: pd.DataFrame, cfg) -> pd.DataFram
 
 
 def kpi_header(accounts: pd.DataFrame) -> None:
-    """The original's 10 Executive KPI cards (computed over the division's account set)."""
-    workable = accounts[is_workable(accounts)]
-    active = accounts[accounts["raw_status"] == "Workable - Active"]
-    inactive = accounts[accounts["raw_status"].astype(str).str.contains("Inactive", case=False, na=False)]
-    zero_ob = accounts[accounts["ob"] < 1]
-    total_fac = accounts["facility"].sum()
-    total_ob = accounts["ob"].sum()
-    total_rep = accounts["mtd_repayments"].sum()
-    util = total_ob / total_fac * 100 if total_fac > 0 else 0
-    inact_12m = inactive[inactive["days_since_last"].fillna(999) <= 365]
-
-    c = st.columns(5)
-    c[0].metric("Total Workable Accounts", f"{len(workable):,}")
-    c[1].metric("Active Accounts", f"{len(active):,}")
-    c[2].metric("Inactive Accounts", f"{len(inactive):,}")
-    c[3].metric("Zero-OB Accounts", f"{len(zero_ob):,}")
-    c[4].metric("Total Facility Size", fmt_money(total_fac))
-    c = st.columns(5)
-    c[0].metric("Total Outstanding OB", fmt_money(total_ob))
-    c[1].metric("Portfolio Utilization", f"{util:.1f}%")
-    c[2].metric("Net OB (OB − Repayments)", fmt_money(total_ob - total_rep))
-    c[3].metric("MTD Repayments", fmt_money(total_rep))
-    c[4].metric("Inactive w/ Last 12 Mo", f"{len(inact_12m):,}", "Reactivation targets", delta_color="off")
-
-
-def kpi_header(accounts: pd.DataFrame) -> None:
     """Light-theme replica of the original 10-card Pankit KPI grid."""
     workable = accounts[is_workable(accounts)]
     active = accounts[accounts["raw_status"] == "Workable - Active"]
@@ -111,54 +84,6 @@ def kpi_header(accounts: pd.DataFrame) -> None:
             ("Inactive w/ Last 12 Mo", f"{len(inact_12m):,}", "Reactivation targets", "#fb923c"),
         ],
         columns=5,
-    )
-
-
-def render_executive(accounts: pd.DataFrame, accounts_team: pd.DataFrame, invoices_team: pd.DataFrame,
-                     ob_pivot: pd.DataFrame, cfg) -> None:
-    st.caption("Executive view is leader-level: it uses the whole division regardless of the AM/status filters (matches the original).")
-    
-    excel_data = export_portfolio_report(accounts_team)
-    st.download_button(label="📥 Export Portfolio Report (Excel)", data=excel_data, file_name="pankit_portfolio_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    
-    kpi_header(accounts_team)
-
-    c1, c2 = st.columns(2)
-    with c1:
-        trend = ob_trend(ob_pivot, set(accounts_team["id"]))
-        if not trend.empty:
-            recent = trend.tail(90)
-            fig = go.Figure(go.Scatter(x=recent["date"], y=recent["ob"], mode="lines", name="OB",
-                                       line=dict(color=ACCENT_PANKIT, width=2)))
-            fig.add_hline(y=recent["ob"].iloc[-1], line_dash="dash", line_color=POSITIVE,
-                          annotation_text=f"Today {fmt_money(recent['ob'].iloc[-1])}")
-            fig.update_yaxes(tickprefix="$")
-            st.plotly_chart(base_layout(fig, "Portfolio OB Trend (last 90 days)"), use_container_width=True)
-        else:
-            st.info("Upload OB files to enable the trend.")
-    with c2:
-        perf = _am_perf(accounts_team, invoices_team, cfg)
-        fig = go.Figure(go.Bar(
-            x=[am.split()[0] for am in perf["am"]], y=perf["repayments"], name="Repayments",
-            marker_color=[PANKIT_AM_COLORS.get(am, MUTED) for am in perf["am"]],
-        ))
-        fig.update_yaxes(tickprefix="$")
-        st.plotly_chart(base_layout(fig, "MTD Repayments by AM"), use_container_width=True)
-
-    section_header("AM Portfolio Snapshot")
-    perf = _am_perf(accounts_team, invoices_team, cfg).sort_values("ob", ascending=False)
-    display = perf.copy()
-    display["wirr"] = display["wirr"].map(fmt_irr)
-    st.dataframe(
-        display,
-        use_container_width=True, hide_index=True,
-        column_config={
-            "facility": st.column_config.NumberColumn("Total Facility", format="$ %.0f"),
-            "ob": st.column_config.NumberColumn("Total OB", format="$ %.0f"),
-            "avg_utilization": st.column_config.NumberColumn("Avg Util %", format="%.1f%%"),
-            "repayments": st.column_config.NumberColumn("MTD Repayments", format="$ %.0f"),
-            "originations": st.column_config.NumberColumn("Total Originations", format="$ %.0f"),
-        },
     )
 
 
@@ -358,3 +283,57 @@ def render_opportunity_views(accounts_team: pd.DataFrame, selected_am: str, cfg)
                      "total_gap": st.column_config.NumberColumn("Total Gap to 75%", format="$ %.0f"),
                      "avg_utilization": st.column_config.NumberColumn("Avg Util %", format="%.1f%%"),
                  })
+
+
+# ---------------------------------------------------------------- View Executive ----
+def render_executive(accounts: pd.DataFrame, accounts_team: pd.DataFrame, invoices_team: pd.DataFrame,
+                     ob_pivot: pd.DataFrame, cfg) -> None:
+    st.caption("Executive view is leader-level: it uses the whole division regardless of the AM/status filters (matches the original).")
+
+    st.download_button(
+        label="📥 Export Portfolio Report (Excel)",
+        data=export_portfolio_report(accounts_team),
+        file_name="pankit_portfolio_report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="pan_portfolio_export",
+    )
+
+    kpi_header(accounts_team)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        trend = ob_trend(ob_pivot, set(accounts_team["id"]))
+        if not trend.empty:
+            recent = trend.tail(90)
+            fig = go.Figure(go.Scatter(x=recent["date"], y=recent["ob"], mode="lines", name="OB",
+                                       line=dict(color=ACCENT_PANKIT, width=2)))
+            fig.add_hline(y=recent["ob"].iloc[-1], line_dash="dash", line_color=POSITIVE,
+                          annotation_text=f"Today {fmt_money(recent['ob'].iloc[-1])}")
+            fig.update_yaxes(tickprefix="$")
+            st.plotly_chart(base_layout(fig, "Portfolio OB Trend (last 90 days)"), use_container_width=True)
+        else:
+            st.info("Upload OB files to enable the trend.")
+    with c2:
+        perf = _am_perf(accounts_team, invoices_team, cfg)
+        fig = go.Figure(go.Bar(
+            x=[am.split()[0] for am in perf["am"]], y=perf["repayments"], name="Repayments",
+            marker_color=[PANKIT_AM_COLORS.get(am, MUTED) for am in perf["am"]],
+        ))
+        fig.update_yaxes(tickprefix="$")
+        st.plotly_chart(base_layout(fig, "MTD Repayments by AM"), use_container_width=True)
+
+    section_header("AM Portfolio Snapshot")
+    perf = _am_perf(accounts_team, invoices_team, cfg).sort_values("ob", ascending=False)
+    display = perf.copy()
+    display["wirr"] = display["wirr"].map(fmt_irr)
+    st.dataframe(
+        display,
+        use_container_width=True, hide_index=True,
+        column_config={
+            "facility": st.column_config.NumberColumn("Total Facility", format="$ %.0f"),
+            "ob": st.column_config.NumberColumn("Total OB", format="$ %.0f"),
+            "avg_utilization": st.column_config.NumberColumn("Avg Util %", format="%.1f%%"),
+            "repayments": st.column_config.NumberColumn("MTD Repayments", format="$ %.0f"),
+            "originations": st.column_config.NumberColumn("Total Originations", format="$ %.0f"),
+        },
+    )

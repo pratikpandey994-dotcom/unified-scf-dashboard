@@ -75,51 +75,6 @@ def render_snapshot(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
     total_ob = target["ob"].sum()
     total_fac = target["util_denom"].sum()
 
-    st.markdown("##### Portfolio Scale — in-target (Active + Suspended Workable) only")
-    c = st.columns(4)
-    c[0].metric("Total OB", fmt_money(total_ob))
-    c[1].metric("Total Facility", fmt_money(total_fac))
-    c[2].metric("Portfolio Utilization", fmt_pct(total_ob / total_fac if total_fac > 0 else 0))
-    wa_count = int((accounts["broad_status"] == "Workable").sum())
-    c[3].metric("Total Accounts", f"{len(accounts):,}", f"{wa_count} Workable · {len(accounts) - wa_count} NWA", delta_color="off")
-
-    st.markdown("##### Account Health")
-    days = accounts["days_since_last"].fillna(99999)
-    tiles = [
-        ("Active Workable · IN TARGET", accounts["account_type"] == "Active Workable"),
-        ("Suspended Workable · IN TARGET", accounts["account_type"] == "Suspended Workable"),
-        ("Workable >365d · EXCL.", accounts["account_type"] == "Workable >365"),
-        ("Non-Workable", accounts["account_type"] == "NWA"),
-        ("NW >365d", (accounts["account_type"] == "NWA") & (days > 365)),
-        ("NW ≤365d", (accounts["account_type"] == "NWA") & (days <= 365)),
-    ]
-    cols = st.columns(6)
-    for col, (label, mask) in zip(cols, tiles):
-        subset = accounts[mask]
-        col.metric(label, f"{len(subset):,}", f"{fmt_money(subset['ob'].sum())} OB · {fmt_money(subset['util_denom'].sum())} Fac", delta_color="off")
-
-    st.markdown("##### Yield (OB-weighted signed-up IRR)")
-    c = st.columns(3)
-    c[0].metric("Portfolio WIRR (in target)", fmt_irr(weighted_irr(target)))
-    c[1].metric("Active WIRR", fmt_irr(weighted_irr(target[target["account_type"] == "Active Workable"])))
-    c[2].metric("Suspended WIRR", fmt_irr(weighted_irr(target[target["account_type"] == "Suspended Workable"])))
-
-    st.markdown("##### Risk")
-    risk = risk_kpis(target, invoices)
-    c = st.columns(4)
-    c[0].metric("Overdue OB (DPD 8-90)", fmt_money(risk["overdue_ob"]), f"{risk['overdue_count']} invoices", delta_color="off")
-    c[1].metric("NPA OB (DPD >90)", fmt_money(risk["npa_ob"]), f"{risk['npa_count']} invoices", delta_color="off")
-    c[2].metric("Clean OB", fmt_money(risk["clean_ob"]))
-    c[3].metric("Clean %", fmt_pct(risk["clean_pct"]))
-
-
-# Polished light-theme replica of the original snapshot tile structure. This
-# intentionally overrides the first direct port above while preserving formulas.
-def render_snapshot(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
-    target = in_target(accounts)
-    total_ob = target["ob"].sum()
-    total_fac = target["util_denom"].sum()
-
     section_header("Portfolio Scale", "In-target Active + Suspended Workable accounts")
     wa_count = int((accounts["broad_status"] == "Workable").sum())
     metric_cards(
@@ -171,137 +126,6 @@ def render_snapshot(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
         ],
         columns=4,
     )
-
-
-# ---------------------------------------------------------------- View A ----
-def render_portfolio(accounts: pd.DataFrame, invoices: pd.DataFrame, invoices_team: pd.DataFrame,
-                     ob_pivot: pd.DataFrame, today: pd.Timestamp, cfg) -> None:
-    target = in_target(accounts)
-    total_ob = target["ob"].sum()
-    risk = risk_kpis(target, invoices)
-
-    st.markdown("#### Portfolio Quality")
-    excel_data = export_portfolio_report(target)
-    st.download_button(label="📥 Export Portfolio Report (Excel)", data=excel_data, file_name="nikhil_portfolio_report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    c1, c2 = st.columns([1, 1.4])
-    with c1:
-        st.metric("Clean OB", fmt_money(risk["clean_ob"]), fmt_pct(risk["clean_pct"]) + " of portfolio", delta_color="off")
-        st.metric("Overdue OB (DPD 8-90)", fmt_money(risk["overdue_ob"]), f"{risk['overdue_count']} invoices", delta_color="off")
-        st.metric("NPA OB (DPD >90)", fmt_money(risk["npa_ob"]), f"{risk['npa_count']} invoices", delta_color="off")
-        st.plotly_chart(
-            donut(["Clean", "Overdue", "NPA"], [risk["clean_ob"], risk["overdue_ob"], risk["npa_ob"]],
-                  [POSITIVE, WARNING, NEGATIVE], "Portfolio Quality ($)"),
-            use_container_width=True,
-        )
-    with c2:
-        pq = target.copy()
-        pq["quality"] = account_risk_category(pq, invoices)
-        pq_filter = st.selectbox("Quality filter", ["all", "clean", "overdue", "npa"], key="nik_pq_filter")
-        if pq_filter != "all":
-            pq = pq[pq["quality"] == pq_filter]
-        show_table(pq.sort_values("ob", ascending=False),
-                   ["company", "am", "account_type", "quality", "util_denom", "ob", "utilization_pct", "irr"], height=420)
-
-    st.markdown("#### Weighted IRR")
-    thresh = st.number_input("Only accounts with OB ≥", min_value=0, step=1000, value=0, key="nik_irr_thresh")
-    c = st.columns(3)
-    c[0].metric("Portfolio WIRR", fmt_irr(weighted_irr(target, thresh)))
-    c[1].metric("Active", fmt_irr(weighted_irr(target[target["account_type"] == "Active Workable"], thresh)))
-    c[2].metric("Suspended", fmt_irr(weighted_irr(target[target["account_type"] == "Suspended Workable"], thresh)))
-
-    st.markdown("#### Targetable Portfolio")
-    panels = [
-        ("🟢 Active Workable — IN TARGET", "Active Workable"),
-        ("🟠 Suspended Workable — IN TARGET", "Suspended Workable"),
-        ("⏸ Workable >365d — NOT IN TARGET", "Workable >365"),
-        ("⛔ Non-Workable — NWA", "NWA"),
-    ]
-    cols = st.columns(4)
-    for col, (label, level) in zip(cols, panels):
-        subset = accounts[accounts["account_type"] == level]
-        fac = subset["util_denom"].sum()
-        ob = subset["ob"].sum()
-        col.markdown(f"**{label}**")
-        col.metric("Accounts", f"{len(subset):,}")
-        col.metric("Total Facility", fmt_money(fac))
-        col.metric("OB", fmt_money(ob), fmt_pct(ob / fac if fac > 0 else 0) + " util", delta_color="off")
-
-    st.markdown("#### OB Movement per AM (current OB file window)")
-    if not ob_pivot.empty:
-        current = ob_pivot[ob_pivot.index >= CURRENT_OB_CUTOFF]
-        movers = accounts[~accounts["account_type"].isin({"NWA", "Workable >365"})]
-        if not current.empty and not movers.empty:
-            cols_present = [c_ for c_ in current.columns if c_ in set(movers["id"])]
-            start = current[cols_present].iloc[0]
-            end = current[cols_present].iloc[-1]
-            move = movers[movers["id"].isin(cols_present)].copy()
-            move["ob_start"] = move["id"].map(start)
-            move["ob_end"] = move["id"].map(end)
-            per_am = move.groupby("am")[["ob_start", "ob_end"]].sum().reindex(cfg.ams).dropna()
-            fig = grouped_bar(
-                list(per_am.index),
-                {"OB Start": (per_am["ob_start"].tolist(), "rgba(148,163,184,.7)"),
-                 "OB End": (per_am["ob_end"].tolist(), ACCENT_NIKHIL)},
-                f"OB Start vs End ({current.index.min():%d %b} → {current.index.max():%d %b})",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Upload OB files to enable OB movement.")
-
-    st.markdown("#### Origination vs Repayment")
-    win = st.radio("Window", ["MTD", "QTD", "Custom"], horizontal=True, key="nik_ovr_win")
-    if win == "Custom":
-        d1, d2 = st.columns(2)
-        start = pd.Timestamp(d1.date_input("From", value=today.replace(day=1), key="nik_ovr_from"))
-        end = pd.Timestamp(d2.date_input("To", value=today, key="nik_ovr_to"))
-    else:
-        start, end = get_window(win.lower(), today)
-    orig = originations_by_account(invoices, start, end)
-    repaid = repayments_by_account(invoices, start, end)
-    rows = []
-    for am in cfg.ams:
-        ids = set(accounts.loc[accounts["am"] == am, "id"])
-        o = orig[orig.index.isin(ids)].sum()
-        r = repaid[repaid.index.isin(ids)].sum()
-        rows.append({"am": am.split()[0], "Originated": o, "Repaid": r, "Net": o - r})
-    rows.append({"am": "Team", "Originated": sum(r["Originated"] for r in rows), "Repaid": sum(r["Repaid"] for r in rows), "Net": sum(r["Net"] for r in rows)})
-    ovr = pd.DataFrame(rows)
-    fig = go.Figure()
-    fig.add_bar(x=ovr["am"], y=ovr["Originated"], name="Originated", marker_color=INDIGO)
-    fig.add_bar(x=ovr["am"], y=ovr["Repaid"], name="Repaid", marker_color=POSITIVE)
-    fig.add_bar(x=ovr["am"], y=ovr["Net"], name="Net", marker_color=[ACCENT_NIKHIL if v >= 0 else NEGATIVE for v in ovr["Net"]])
-    fig.update_layout(barmode="group")
-    fig.update_yaxes(tickprefix="$")
-    st.plotly_chart(base_layout(fig, f"Origination vs Repayment ({start:%d %b} – {end:%d %b})"), use_container_width=True)
-
-    st.markdown("#### Collections Tracker (independent of the AM filter above)")
-    chip = st.radio("Scope", ["Portfolio"] + cfg.ams, horizontal=True, key="nik_coll_am")
-    inv = invoices_team if chip == "Portfolio" else invoices_team[invoices_team["am"] == chip]
-    month_start, _ = get_window("mtd", today)
-    received = inv[
-        inv["Stage"].isin(SETTLED) & inv["settlement_date"].notna() & inv["settlement_date"].between(month_start, today)
-    ]
-    received_amt = (received["Origination"] - received["Outstanding"]).clip(lower=0).sum()
-    recovery = inv[inv["Stage"].isin({"overdue", "npa"})]
-    recovery_amt = (recovery["Origination"] - recovery["Outstanding"]).clip(lower=0).sum()
-
-    to_win = st.radio("To-receive window", list(WINDOW_LABELS), format_func=WINDOW_LABELS.get, horizontal=True, key="nik_coll_win")
-    w_start, w_end = get_window(to_win, today)
-    due = inv[inv["Stage"].isin({"advanced", "partial"}) & inv["due_date_of_invoice"].notna() & inv["due_date_of_invoice"].between(w_start, w_end)]
-    c = st.columns(3)
-    c[0].metric("✅ Received MTD (principal repaid)", fmt_money(received_amt), f"{len(received)} invoices", delta_color="off")
-    c[1].metric(f"⏳ To Receive — {WINDOW_LABELS[to_win]}", fmt_money(due["Outstanding"].sum()), f"{len(due)} invoices", delta_color="off")
-    c[2].metric("⚠ Recovery Collections (overdue/NPA repaid)", fmt_money(recovery_amt))
-    if not due.empty:
-        detail = (
-            due.groupby("Buyer")
-            .agg(invoices=("Outstanding", "size"), total_due=("Outstanding", "sum"),
-                 first_due=("due_date_of_invoice", "min"), last_due=("due_date_of_invoice", "max"))
-            .sort_values("total_due", ascending=False)
-            .reset_index()
-        )
-        with st.expander(f"To-receive detail — {len(detail)} companies"):
-            st.dataframe(detail, use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------- View B ----
@@ -494,13 +318,15 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
                ["company", "am", "util_denom", "ob", "peak_ob", "peak_ob_date", "days_since_last"], height=320)
 
     st.markdown("#### Alerts — Unassigned CP Accounts")
-    if not master_raw.empty:
-        unassigned = master_raw[
+    if not master_raw.empty and "Team" in master_raw.columns:
+        base_mask = (
             (master_raw["Team"].astype(str).str.strip() == "CP")
-            & (master_raw["utilization_status"].astype(str).str.strip() == "active")
             & master_raw["First_Disbursed_Date"].notna()
             & (master_raw["AM"].isna() | (master_raw["AM"].astype(str).str.strip().isin(["", "nan"])))
-        ]
+        )
+        if "utilization_status" in master_raw.columns:
+            base_mask &= master_raw["utilization_status"].astype(str).str.strip() == "active"
+        unassigned = master_raw[base_mask]
         if unassigned.empty:
             st.caption("No unassigned active CP accounts. ✅")
         else:
@@ -864,3 +690,149 @@ def render_tracker(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Tim
     if st.button("💾 Save tracker", key="nik_tracker_save"):
         _save_tracker(state)
         st.success("Tracker saved to tracker_state.json")
+
+
+# ---------------------------------------------------------------- View A ----
+def render_portfolio(accounts: pd.DataFrame, invoices: pd.DataFrame, invoices_team: pd.DataFrame,
+                     ob_pivot: pd.DataFrame, today: pd.Timestamp, cfg) -> None:
+    target = in_target(accounts)
+    risk = risk_kpis(target, invoices)
+
+    section_header("Portfolio Quality", "Quality slice selection drives the detail table")
+    st.download_button(
+        label="📥 Export Portfolio Report (Excel)",
+        data=export_portfolio_report(target),
+        file_name="nikhil_portfolio_report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="nik_portfolio_export",
+    )
+    c1, c2 = st.columns([1, 1.2])
+    with c1:
+        st.plotly_chart(
+            donut(["Clean", "Overdue", "NPA"], [risk["clean_ob"], risk["overdue_ob"], risk["npa_ob"]],
+                  [POSITIVE, WARNING, NEGATIVE], "Portfolio Quality ($)"),
+            use_container_width=True,
+        )
+        metric_cards(
+            [
+                ("Clean OB", fmt_money(risk["clean_ob"]), fmt_pct(risk["clean_pct"]) + " of portfolio", POSITIVE),
+                ("Overdue OB", fmt_money(risk["overdue_ob"]), f"{risk['overdue_count']} invoices", WARNING),
+                ("NPA OB", fmt_money(risk["npa_ob"]), f"{risk['npa_count']} invoices", NEGATIVE),
+                ("Clean %", fmt_pct(risk["clean_pct"]), "", POSITIVE),
+            ],
+            columns=2,
+        )
+    with c2:
+        pq = target.copy()
+        pq["quality"] = account_risk_category(pq, invoices)
+        pq_filter = st.radio("Quality view", ["all", "clean", "overdue", "npa"], horizontal=True, key="nik_pq_filter")
+        if pq_filter != "all":
+            pq = pq[pq["quality"] == pq_filter]
+        show_table(pq.sort_values("ob", ascending=False),
+                   ["company", "am", "account_type", "quality", "util_denom", "ob", "utilization_pct", "irr"], height=520)
+
+    section_header("Weighted IRR")
+    thresh = st.number_input("Only accounts with OB >=", min_value=0, step=1000, value=0, key="nik_irr_thresh")
+    c = st.columns(3)
+    c[0].metric("Portfolio WIRR", fmt_irr(weighted_irr(target, thresh)))
+    c[1].metric("Active", fmt_irr(weighted_irr(target[target["account_type"] == "Active Workable"], thresh)))
+    c[2].metric("Suspended", fmt_irr(weighted_irr(target[target["account_type"] == "Suspended Workable"], thresh)))
+
+    section_header("Targetable Portfolio")
+    panels = [
+        ("Active Workable", "Active Workable", POSITIVE, "In target"),
+        ("Suspended Workable", "Suspended Workable", WARNING, "In target"),
+        ("Workable >365d", "Workable >365", MUTED, "Not in target"),
+        ("Non-Workable", "NWA", MUTED, "NWA"),
+    ]
+    cols = st.columns(4)
+    for col, (label, level, color, sub) in zip(cols, panels):
+        subset = accounts[accounts["account_type"] == level]
+        fac = subset["util_denom"].sum()
+        ob = subset["ob"].sum()
+        with col:
+            st.markdown(f"**{label}**")
+            metric_cards(
+                [
+                    ("Accounts", f"{len(subset):,}", sub, color),
+                    ("Total Facility", fmt_money(fac), "", color),
+                    ("OB", fmt_money(ob), fmt_pct(ob / fac if fac > 0 else 0) + " util", color),
+                    ("Utilization", fmt_pct(ob / fac if fac > 0 else 0), "", color),
+                ],
+                columns=2,
+            )
+
+    section_header("OB Movement per AM", "Current OB file window")
+    if not ob_pivot.empty:
+        current = ob_pivot[ob_pivot.index >= CURRENT_OB_CUTOFF]
+        movers = accounts[~accounts["account_type"].isin({"NWA", "Workable >365"})]
+        if not current.empty and not movers.empty:
+            cols_present = [c_ for c_ in current.columns if c_ in set(movers["id"])]
+            start = current[cols_present].iloc[0]
+            end = current[cols_present].iloc[-1]
+            move = movers[movers["id"].isin(cols_present)].copy()
+            move["ob_start"] = move["id"].map(start)
+            move["ob_end"] = move["id"].map(end)
+            per_am = move.groupby("am")[["ob_start", "ob_end"]].sum().reindex(cfg.ams).dropna()
+            fig = grouped_bar(
+                list(per_am.index),
+                {"OB Start": (per_am["ob_start"].tolist(), "rgba(148,163,184,.7)"),
+                 "OB End": (per_am["ob_end"].tolist(), ACCENT_NIKHIL)},
+                f"OB Start vs End ({current.index.min():%d %b} -> {current.index.max():%d %b})",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    section_header("Origination vs Repayment")
+    win = st.radio("Window", ["MTD", "QTD", "Custom"], horizontal=True, key="nik_ovr_win")
+    if win == "Custom":
+        d1, d2 = st.columns(2)
+        start = pd.Timestamp(d1.date_input("From", value=today.replace(day=1), key="nik_ovr_from"))
+        end = pd.Timestamp(d2.date_input("To", value=today, key="nik_ovr_to"))
+    else:
+        start, end = get_window(win.lower(), today)
+    orig = originations_by_account(invoices, start, end)
+    repaid = repayments_by_account(invoices, start, end)
+    rows = []
+    for am in cfg.ams:
+        ids = set(accounts.loc[accounts["am"] == am, "id"])
+        o = orig[orig.index.isin(ids)].sum()
+        r = repaid[repaid.index.isin(ids)].sum()
+        rows.append({"am": am.split()[0], "Originated": o, "Repaid": r, "Net": o - r})
+    rows.append({"am": "Team", "Originated": sum(r["Originated"] for r in rows), "Repaid": sum(r["Repaid"] for r in rows), "Net": sum(r["Net"] for r in rows)})
+    ovr = pd.DataFrame(rows)
+    fig = go.Figure()
+    fig.add_bar(x=ovr["am"], y=ovr["Originated"], name="Originated", marker_color=INDIGO)
+    fig.add_bar(x=ovr["am"], y=ovr["Repaid"], name="Repaid", marker_color=POSITIVE)
+    fig.add_bar(x=ovr["am"], y=ovr["Net"], name="Net", marker_color=[ACCENT_NIKHIL if v >= 0 else NEGATIVE for v in ovr["Net"]])
+    fig.update_layout(barmode="group")
+    fig.update_yaxes(tickprefix="$")
+    st.plotly_chart(base_layout(fig, f"Origination vs Repayment ({start:%d %b} - {end:%d %b})"), use_container_width=True)
+
+    section_header("Collections Tracker", "Independent of the AM filter above")
+    chip = st.radio("Scope", ["Portfolio"] + cfg.ams, horizontal=True, key="nik_coll_am")
+    inv = invoices_team if chip == "Portfolio" else invoices_team[invoices_team["am"] == chip]
+    month_start, _ = get_window("mtd", today)
+    received = inv[
+        inv["Stage"].isin(SETTLED) & inv["settlement_date"].notna() & inv["settlement_date"].between(month_start, today)
+    ]
+    received_amt = (received["Origination"] - received["Outstanding"]).clip(lower=0).sum()
+    recovery = inv[inv["Stage"].isin({"overdue", "npa"})]
+    recovery_amt = (recovery["Origination"] - recovery["Outstanding"]).clip(lower=0).sum()
+
+    to_win = st.radio("To-receive window", list(WINDOW_LABELS), format_func=WINDOW_LABELS.get, horizontal=True, key="nik_coll_win")
+    w_start, w_end = get_window(to_win, today)
+    due = inv[inv["Stage"].isin({"advanced", "partial"}) & inv["due_date_of_invoice"].notna() & inv["due_date_of_invoice"].between(w_start, w_end)]
+    c = st.columns(3)
+    c[0].metric("Received MTD (principal repaid)", fmt_money(received_amt), f"{len(received)} invoices", delta_color="off")
+    c[1].metric(f"To Receive - {WINDOW_LABELS[to_win]}", fmt_money(due["Outstanding"].sum()), f"{len(due)} invoices", delta_color="off")
+    c[2].metric("Recovery Collections (overdue/NPA repaid)", fmt_money(recovery_amt))
+    if not due.empty:
+        detail = (
+            due.groupby("Buyer")
+            .agg(invoices=("Outstanding", "size"), total_due=("Outstanding", "sum"),
+                 first_due=("due_date_of_invoice", "min"), last_due=("due_date_of_invoice", "max"))
+            .sort_values("total_due", ascending=False)
+            .reset_index()
+        )
+        with st.expander(f"To-receive detail - {len(detail)} companies"):
+            st.dataframe(detail, use_container_width=True, hide_index=True)
