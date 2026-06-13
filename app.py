@@ -125,8 +125,10 @@ raw_status_options = sorted(team_accounts["raw_status"].dropna().astype(str).uni
 
 with st.sidebar:
     st.divider()
-    st.header("Custom Filters")
-    st.markdown("**Masterdata**")
+    st.markdown("""
+        <h3 style='margin-top: -10px !important; margin-bottom: 0 !important;'>Custom Filters</h3>
+        <p style='margin-top: -5px !important; margin-bottom: 0 !important;'><b>Masterdata</b></p>
+    """, unsafe_allow_html=True)
     account_filter_cols = [c for c in team_accounts.columns]
     selected_account_filters = st.multiselect("Add filter", account_filter_cols, default=[], key=f"{team_name}_ms_master")
     account_filter_values = {}
@@ -135,7 +137,7 @@ with st.sidebar:
             options = sorted(team_accounts[col_name].dropna().astype(str).unique().tolist())
             account_filter_values[col_name] = st.multiselect(col_name, options, default=[], key=f"{team_name}_{col_name}_master")
 
-    st.markdown("**Invoice Data**")
+    st.markdown("<p style='margin-top: 5px !important; margin-bottom: 0 !important;'><b>Invoice Data</b></p>", unsafe_allow_html=True)
     view2_filter_cols = [c for c in team_invoices.columns if c not in account_filter_cols]
     selected_view2_filters = st.multiselect("Add filter", view2_filter_cols, default=[], key=f"{team_name}_ms_invoice")
     view2_filter_values = {}
