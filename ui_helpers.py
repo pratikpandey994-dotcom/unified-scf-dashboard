@@ -230,7 +230,15 @@ small, .small { font-size: 0.78rem; color: var(--scf-muted); }
 [data-testid="stSidebar"] [data-baseweb="select"] span {
   color: TK_SIDEBAR_TEXT !important;
 }
-/* Sidebar toggle */
+/* Sidebar toggle (collapsedControl) */
+[data-testid="collapsedControl"] {
+  color: var(--scf-text) !important;
+}
+[data-testid="collapsedControl"] svg {
+  fill: var(--scf-text) !important;
+  color: var(--scf-text) !important;
+}
+/* Sidebar st.toggle component */
 [data-testid="stSidebar"] [data-testid="stToggle"] label span {
   color: TK_SIDEBAR_TEXT !important;
 }

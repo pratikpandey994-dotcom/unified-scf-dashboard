@@ -101,6 +101,9 @@ def _snapshot_on_or_before(ob_pivot: pd.DataFrame, target: pd.Timestamp) -> pd.S
     return ob_pivot.iloc[pos]
 
 
+import streamlit as st
+
+@st.cache_data(show_spinner=False)
 def build_portfolio(
     master: pd.DataFrame,
     invoices_raw: pd.DataFrame,
