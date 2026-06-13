@@ -22,58 +22,59 @@ AMBER_WARM  = "#B45309"
 CRIMSON     = "#991B1B"
 BLUE_ROYAL  = "#1D4ED8"
 
-# Palettes ported from the am-dashboard "Nexus Design System" (am-dashboard-repo/index.html).
+# Palettes ported from the am-dashboard Streamlit app (am-dashboard-repo/dashboard.py).
 # Fonts (Syne/DM Sans/DM Mono) and chart series colors are deliberately NOT taken from it.
 LIGHT_THEME = {
-    "bg":               "#f4f3ef",   # warm beige body
+    "bg":               "#ffffff",
     "card":             "#ffffff",
-    "card_soft":        "#f9f8f6",
-    "border":           "#e2e8f0",
-    "border_soft":      "#e9edf3",
-    "text":             "#2d3748",
-    "muted":            "#718096",
-    "faint":            "#a0aec0",
-    "accent":           "#008080",   # teal primary
+    "card_soft":        "#f9fafb",
+    "border":           "#e5e7eb",
+    "border_soft":      "#f3f4f6",
+    "text":             "#1f2937",
+    "muted":            "#6b7280",
+    "faint":            "#9ca3af",
+    "accent":           "#0d9488",
     "accent_text":      "#ffffff",
-    "heading":          "#2d3748",
-    "sidebar_bg":       "#ffffff",   # Nexus sidebar = surface
-    "sidebar_text":     "#2d3748",
-    "sidebar_muted":    "#718096",
-    "sidebar_border":   "#e2e8f0",
-    "sidebar_widget_bg":     "rgba(45,55,72,0.04)",
-    "sidebar_widget_border": "#e2e8f0",
-    "sidebar_alert_bg":      "#e0f2f1",  # primary-light
-    "sidebar_alert_text":    "#006666",
-    "pill_selected_bg":   "#e0f2f1",
-    "pill_selected_text": "#008080",
-    "button_hover_bg":    "#006666",
+    "heading":          "#111827",
+    "sidebar_bg":       "#f3f4f6",
+    "sidebar_text":     "#1f2937",
+    "sidebar_muted":    "#6b7280",
+    "sidebar_border":   "#e5e7eb",
+    "sidebar_widget_bg":     "#ffffff",
+    "sidebar_widget_border": "#e5e7eb",
+    "sidebar_alert_bg":      "#f0fdfa",
+    "sidebar_alert_text":    "#0f766e",
+    "pill_selected_bg":   "#f0fdfa",
+    "pill_selected_text": "#0d9488",
+    "button_hover_bg":    "#0f766e",
     "button_hover_text":  "#ffffff",
 }
 DARK_THEME = {
-    "bg":               "#1a202c",
-    "card":             "#2d3748",   # dark charcoal surface
-    "card_soft":        "#27303f",
-    "border":           "#4a5568",
-    "border_soft":      "#3d4858",
-    "text":             "#f7fafc",
-    "muted":            "#a0aec0",
-    "faint":            "#718096",
-    "accent":           "#4fd1c5",   # bright teal on dark
-    "accent_text":      "#1a202c",
-    "heading":          "#f7fafc",
-    "sidebar_bg":       "#2d3748",
-    "sidebar_text":     "rgba(255,255,255,0.85)",
-    "sidebar_muted":    "rgba(255,255,255,0.40)",
-    "sidebar_border":   "#4a5568",
-    "sidebar_widget_bg":     "rgba(255,255,255,0.07)",
-    "sidebar_widget_border": "rgba(255,255,255,0.15)",
-    "sidebar_alert_bg":      "#234e52",  # primary-light (dark)
-    "sidebar_alert_text":    "#4fd1c5",
-    "pill_selected_bg":   "#234e52",
-    "pill_selected_text": "#4fd1c5",
-    "button_hover_bg":    "#234e52",
-    "button_hover_text":  "#4fd1c5",
+    "bg":               "#111827",
+    "card":             "#1f2937",
+    "card_soft":        "#374151",
+    "border":           "#374151",
+    "border_soft":      "#4b5563",
+    "text":             "#f3f4f6",
+    "muted":            "#9ca3af",
+    "faint":            "#6b7280",
+    "accent":           "#14b8a6",
+    "accent_text":      "#ffffff",
+    "heading":          "#ffffff",
+    "sidebar_bg":       "#111827",
+    "sidebar_text":     "#f3f4f6",
+    "sidebar_muted":    "#9ca3af",
+    "sidebar_border":   "#374151",
+    "sidebar_widget_bg":     "#1f2937",
+    "sidebar_widget_border": "#4b5563",
+    "sidebar_alert_bg":      "#134e4a",
+    "sidebar_alert_text":    "#5eead4",
+    "pill_selected_bg":   "#134e4a",
+    "pill_selected_text": "#14b8a6",
+    "button_hover_bg":    "#0f766e",
+    "button_hover_text":  "#ffffff",
 }
+
 
 # Module-level globals updated by _apply_theme
 SURFACE      = DARK_THEME["card"]
