@@ -69,7 +69,7 @@ with st.sidebar:
     if master_file or invoice_file:
         st.session_state["use_sample"] = False
 
-    today_value = st.date_input("As of date", value=date(2026, 6, 11), key="as_of_date")
+    today_value = date.today()
 
 
 # ---------------------------------------------------------------- Data load ----
