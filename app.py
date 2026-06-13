@@ -56,25 +56,28 @@ with st.sidebar:
     st.header("Appearance")
     st.radio("Theme", ["Light", "Dark"], index=0 if theme_mode == "Light" else 1, key="theme_mode", horizontal=True)
 
-    # Default to Demo data when local extracts aren't present (e.g. Streamlit Cloud).
-    _found = default_files_found()
-    _default_src = 0 if all(_found.values()) else 1
-    st.header("Data Source")
-    data_mode = st.radio("Source", ["Real files", "Demo data"], index=_default_src, key="data_mode")
-    if data_mode == "Demo data":
-        st.info("Demo mode uses synthetic data for UI review.")
-    else:
-        with st.expander("Auto-detected files (newest match in Downloads)"):
-            for kind, pattern in FILE_PATTERNS.items():
-                found = _found.get(kind)
-                st.caption(f"{pattern}: {found.name if found else '— not found —'}")
+    if "use_sample" not in st.session_state:
+        st.session_state["use_sample"] = False
+
+    st.header("Data Upload")
+    if st.button("Load Sample Data", use_container_width=True):
+        st.session_state["use_sample"] = True
+
+    master_file = st.file_uploader("Masterdata file", type=["xlsx", "xls"], key="master_file")
+    invoice_file = st.file_uploader("Invoice Data file", type=["xlsx", "xls"], key="invoice_file")
+
+    if master_file or invoice_file:
+        st.session_state["use_sample"] = False
 
     today_value = st.date_input("As of date", value=date(2026, 6, 11), key="as_of_date")
 
 
 # ---------------------------------------------------------------- Data load ----
 try:
-    raw = load_demo_data() if data_mode == "Demo data" else load_data(as_of=str(today_value))
+    if st.session_state["use_sample"]:
+        raw = load_demo_data()
+    else:
+        raw = load_data(master_file=master_file, invoice_file=invoice_file, as_of=str(today_value))
     if not {"master", "invoices", "ob_history"} <= set(raw):
         # Cached result from a pre-migration loader (old five-file schema) — heal and rerun.
         st.cache_data.clear()
