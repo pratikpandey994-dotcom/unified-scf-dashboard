@@ -48,6 +48,7 @@ from ui_helpers import (
     fmt_money,
     fmt_pct,
     grouped_bar,
+    hero_metric_cards,
     metric_cards,
     section_header,
     show_table,
@@ -71,68 +72,237 @@ def _series_table(accounts: pd.DataFrame, series: pd.Series, value_name: str) ->
 
 # ---------------------------------------------------------------- View F ----
 def render_snapshot(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
+    import plotly.graph_objects as go
+
     target = in_target(accounts)
     total_ob = target["ob"].sum()
     total_fac = target["util_denom"].sum()
-
-    section_header("Portfolio Scale", "In-target Active + Suspended Workable accounts")
-    wa_count = int((accounts["broad_status"] == "Workable").sum())
-    metric_cards(
-        [
-            ("Total OB", fmt_money(total_ob), "", ACCENT_NIKHIL),
-            ("Total Facility", fmt_money(total_fac), "Facility + overdraft", INDIGO),
-            ("Portfolio Utilization", fmt_pct(total_ob / total_fac if total_fac > 0 else 0), "", POSITIVE),
-            ("Total Accounts", f"{len(accounts):,}", f"{wa_count} Workable / {len(accounts) - wa_count} NWA", MUTED),
-        ],
-        columns=4,
-    )
-
-    section_header("Account Health", "Original six-tile CP pod split")
-    days = accounts["days_since_last"].fillna(99999)
-    tile_specs = [
-        ("Active Workable / IN TARGET", accounts["account_type"] == "Active Workable", POSITIVE),
-        ("Suspended Workable / IN TARGET", accounts["account_type"] == "Suspended Workable", WARNING),
-        ("Workable >365d / EXCL.", accounts["account_type"] == "Workable >365", MUTED),
-        ("Non-Workable", accounts["account_type"] == "NWA", MUTED),
-        ("NW >365d", (accounts["account_type"] == "NWA") & (days > 365), MUTED),
-        ("NW <=365d", (accounts["account_type"] == "NWA") & (days <= 365), MUTED),
-    ]
-    health_cards = []
-    for label, mask, color in tile_specs:
-        subset = accounts[mask]
-        health_cards.append(
-            (label, f"{len(subset):,}", f"{fmt_money(subset['ob'].sum())} OB / {fmt_money(subset['util_denom'].sum())} Fac", color)
-        )
-    metric_cards(health_cards, columns=3)
-
-    section_header("Yield", "OB-weighted signed-up IRR")
-    metric_cards(
-        [
-            ("Portfolio WIRR", fmt_irr(weighted_irr(target)), "In target", ACCENT_NIKHIL),
-            ("Active WIRR", fmt_irr(weighted_irr(target[target["account_type"] == "Active Workable"])), "", POSITIVE),
-            ("Suspended WIRR", fmt_irr(weighted_irr(target[target["account_type"] == "Suspended Workable"])), "", WARNING),
-        ],
-        columns=3,
-    )
-
-    section_header("Risk", "DPD 8-90 overdue and DPD >90 NPA")
+    utilization = total_ob / total_fac if total_fac > 0 else 0
     risk = risk_kpis(target, invoices)
-    metric_cards(
-        [
-            ("Overdue OB (DPD 8-90)", fmt_money(risk["overdue_ob"]), f"{risk['overdue_count']} invoices", WARNING),
-            ("NPA OB (DPD >90)", fmt_money(risk["npa_ob"]), f"{risk['npa_count']} invoices", NEGATIVE),
-            ("Clean OB", fmt_money(risk["clean_ob"]), "", POSITIVE),
-            ("Clean %", fmt_pct(risk["clean_pct"]), "", POSITIVE),
-        ],
-        columns=4,
+    wirr = weighted_irr(target)
+
+    # ── OB 30d ago from ob_trend list ──────────────────────────────────────
+    def _ob_30d_delta(accs: pd.DataFrame) -> float | None:
+        if "ob_trend" not in accs.columns:
+            return None
+        trends = accs["ob_trend"].dropna()
+        ob_30d_total = sum(t[0] if isinstance(t, list) and len(t) > 0 else 0 for t in trends)
+        current = accs["ob"].sum()
+        if ob_30d_total <= 0:
+            return None
+        return ((current - ob_30d_total) / ob_30d_total) * 100
+
+    ob_delta = _ob_30d_delta(target)
+    util_30d = None  # placeholder — could compute similarly if needed
+    gap_to_75 = max(0.0, total_fac * 0.75 - total_ob)
+    wa_count = int((accounts["broad_status"] == "Workable").sum())
+    nwa_count = len(accounts) - wa_count
+
+    # ────────────────────────────────────────────────────────────────────────
+    # TIER 1 — Hero Metric Cards
+    # ────────────────────────────────────────────────────────────────────────
+    st.markdown(
+        "<p style='font-size:0.63rem;font-weight:700;letter-spacing:0.10em;"
+        "text-transform:uppercase;color:#6B7280;margin-bottom:10px;'>Portfolio Overview</p>",
+        unsafe_allow_html=True,
     )
+    hero_metric_cards([
+        {
+            "label": "Total Outstanding Balance",
+            "value": fmt_money(total_ob),
+            "color": "#0F1F3D",
+            "delta_pct": ob_delta,
+            "sub": f"In-target accounts only",
+        },
+        {
+            "label": "Portfolio Utilization",
+            "value": fmt_pct(utilization),
+            "color": "#0D9488",
+            "delta_pct": None,
+            "sub": f"Target ≥ 75% · Facility basis {fmt_money(total_fac)}",
+        },
+        {
+            "label": "Gap to 75% Target",
+            "value": fmt_money(gap_to_75),
+            "color": "#4361EE",
+            "delta_pct": None,
+            "sub": "Opportunity headroom",
+        },
+        {
+            "label": "NPA Outstanding",
+            "value": fmt_money(risk["npa_ob"]),
+            "color": "#991B1B",
+            "delta_pct": None,
+            "sub": f"{risk['npa_count']} invoices DPD > 90",
+        },
+        {
+            "label": "Overdue Outstanding",
+            "value": fmt_money(risk["overdue_ob"]),
+            "color": "#B45309",
+            "delta_pct": None,
+            "sub": f"{risk['overdue_count']} invoices DPD 8-90",
+        },
+    ], columns=5)
+
+    st.markdown("<div style='margin-top:1.2rem'></div>", unsafe_allow_html=True)
+
+    # ────────────────────────────────────────────────────────────────────────
+    # TIER 2 — Portfolio Composition + IRR + Account Health (3 columns)
+    # ────────────────────────────────────────────────────────────────────────
+    col_donut, col_health, col_irr = st.columns([1.2, 1.3, 1.0])
+
+    with col_donut:
+        section_header("Portfolio Composition", "By account type")
+        type_counts = accounts.groupby("account_type")["ob"].sum().reset_index()
+        colors_map = {
+            "Active Workable": POSITIVE,
+            "Suspended Workable": WARNING,
+            "Workable >365": MUTED,
+            "NWA": "#D1D5DB",
+        }
+        type_counts["color"] = type_counts["account_type"].map(colors_map).fillna(MUTED)
+        fig_donut = go.Figure(go.Pie(
+            labels=type_counts["account_type"],
+            values=type_counts["ob"],
+            hole=0.6,
+            marker_colors=type_counts["color"].tolist(),
+            textinfo="percent",
+            hovertemplate="%{label}<br>OB: $%{value:,.0f}<extra></extra>",
+        ))
+        fig_donut.update_layout(
+            margin=dict(t=10, b=10, l=10, r=10),
+            height=220,
+            showlegend=True,
+            legend=dict(orientation="v", font=dict(size=10)),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+        )
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    with col_health:
+        section_header("Account Health Tiles", "Count + OB per status")
+        days = accounts["days_since_last"].fillna(99999)
+        tile_specs = [
+            ("Active Workable", accounts["account_type"] == "Active Workable", POSITIVE),
+            ("Suspended Workable", accounts["account_type"] == "Suspended Workable", WARNING),
+            ("Workable >365 (Excl.)", accounts["account_type"] == "Workable >365", MUTED),
+            ("Non-Workable", accounts["account_type"] == "NWA", "#D1D5DB"),
+        ]
+        rows_html = ""
+        for lbl, mask, color in tile_specs:
+            subset = accounts[mask]
+            ob_str = fmt_money(subset["ob"].sum())
+            count = len(subset)
+            rows_html += (
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:8px 12px;margin-bottom:6px;border-radius:8px;'
+                f'border-left:4px solid {color};background:#F9FAFB;">'
+                f'<span style="font-size:0.8rem;font-weight:600;color:#374151">{lbl}</span>'
+                f'<span style="font-family:\'DM Mono\',monospace;font-size:0.82rem;color:#1F2937">'
+                f'<b>{count}</b> <span style="color:#9CA3AF;font-size:0.72rem">accts · {ob_str}</span>'
+                f'</span></div>'
+            )
+        st.markdown(rows_html, unsafe_allow_html=True)
+
+    with col_irr:
+        section_header("Yield (WIRR)", "OB-weighted signed-up IRR")
+        irr_items = [
+            ("Portfolio", weighted_irr(target), "#0F1F3D"),
+            ("Active WA", weighted_irr(target[target["account_type"] == "Active Workable"]), POSITIVE),
+            ("Suspended WA", weighted_irr(target[target["account_type"] == "Suspended Workable"]), WARNING),
+        ]
+        irr_html = ""
+        for lbl, val, color in irr_items:
+            irr_html += (
+                f'<div style="display:flex;justify-content:space-between;align-items:center;'
+                f'padding:10px 12px;margin-bottom:8px;border-radius:8px;'
+                f'background:#F9FAFB;border:1px solid #F3F4F6;">'
+                f'<span style="font-size:0.78rem;color:#6B7280;font-weight:600">{lbl}</span>'
+                f'<span style="font-family:\'DM Mono\',monospace;font-size:1.1rem;font-weight:600;color:{color}">'
+                f'{fmt_irr(val) if val else "—"}</span></div>'
+            )
+        st.markdown(irr_html, unsafe_allow_html=True)
+
+        st.markdown("<div style='margin-top:0.5rem'></div>", unsafe_allow_html=True)
+        clean_pct = risk["clean_pct"]
+        st.markdown(
+            f'<div style="font-size:0.63rem;font-weight:700;letter-spacing:0.08em;'
+            f'text-transform:uppercase;color:#6B7280;margin-bottom:6px;">Portfolio Health</div>'
+            f'<div style="display:flex;height:10px;border-radius:6px;overflow:hidden;gap:2px;">'
+            f'<div style="flex:{clean_pct*100:.0f};background:{POSITIVE}" title="Clean {clean_pct:.1%}"></div>'
+            f'<div style="flex:{risk["overdue_ob"]/(total_ob or 1)*100:.0f};background:{WARNING}" title="Overdue"></div>'
+            f'<div style="flex:{risk["npa_ob"]/(total_ob or 1)*100:.0f};background:#991B1B" title="NPA"></div>'
+            f'</div>'
+            f'<div style="display:flex;gap:12px;margin-top:6px;">'
+            f'<span style="font-size:0.7rem;color:{POSITIVE}">● Clean {fmt_pct(clean_pct)}</span>'
+            f'<span style="font-size:0.7rem;color:{WARNING}">● Overdue</span>'
+            f'<span style="font-size:0.7rem;color:#991B1B">● NPA</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='margin-top:1.4rem'></div>", unsafe_allow_html=True)
+
+    # ────────────────────────────────────────────────────────────────────────
+    # TIER 3 — Action-Oriented Tables (side by side)
+    # ────────────────────────────────────────────────────────────────────────
+    col_opp, col_risk = st.columns(2)
+
+    with col_opp:
+        section_header("🎯 Top Opportunity", "Largest gap to 75% utilization target")
+        if "gap_to_75" in target.columns:
+            opp = (
+                target[target["gap_to_75"] > 0]
+                .sort_values("gap_to_75", ascending=False)
+                .head(8)[["company", "am", "ob", "target_ob_75", "gap_to_75", "utilization_pct"]]
+            )
+            if not opp.empty:
+                st.dataframe(
+                    opp,
+                    hide_index=True, use_container_width=True, height=280,
+                    column_config={
+                        "company": st.column_config.TextColumn("Account"),
+                        "am": st.column_config.TextColumn("AM"),
+                        "ob": st.column_config.NumberColumn("OB", format="$%.0f"),
+                        "target_ob_75": st.column_config.NumberColumn("75% Target", format="$%.0f"),
+                        "gap_to_75": st.column_config.NumberColumn("Gap ↑", format="$%.0f"),
+                        "utilization_pct": st.column_config.NumberColumn("Util%", format="%.1f%%"),
+                    },
+                )
+            else:
+                st.caption("All accounts above 75% — excellent!")
+
+    with col_risk:
+        section_header("⚠️ Accounts Needing Attention", "Overdue + NPA accounts by OB")
+        if not invoices.empty:
+            open_inv = invoices[invoices["Stage"].isin(OPEN_STAGES)]
+            risky_ids = set(open_inv.loc[open_inv["dpd"] > 7, "account_id"])
+            risky = target[target["id"].isin(risky_ids)].copy()
+            risky["risk_cat"] = account_risk_category(risky, invoices)
+            risky = risky.sort_values("ob", ascending=False).head(8)
+            if not risky.empty:
+                st.dataframe(
+                    risky[["company", "am", "ob", "risk_cat", "utilization_pct"]],
+                    hide_index=True, use_container_width=True, height=280,
+                    column_config={
+                        "company": st.column_config.TextColumn("Account"),
+                        "am": st.column_config.TextColumn("AM"),
+                        "ob": st.column_config.NumberColumn("OB", format="$%.0f"),
+                        "risk_cat": st.column_config.TextColumn("Risk"),
+                        "utilization_pct": st.column_config.NumberColumn("Util%", format="%.1f%%"),
+                    },
+                )
+            else:
+                st.caption("No overdue or NPA accounts. 🎉")
+        else:
+            st.caption("No invoice data loaded.")
 
 
 # ---------------------------------------------------------------- View B ----
 def render_team(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Timestamp, cfg) -> None:
     month_start, _ = get_window("mtd", today)
     visible_ams = [am for am in cfg.ams if am in set(accounts["am"])]
-    st.markdown("#### AM Scorecards")
+    section_header("AM Scorecards", "MTD origination · repayment · early repayment · WIRR per manager")
     cols = st.columns(max(len(visible_ams), 1))
     for col, am in zip(cols, visible_ams):
         sub = accounts[accounts["am"] == am]
@@ -148,16 +318,39 @@ def render_team(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Timest
             & (inv["settlement_date"] < inv["due_date_of_invoice"])
         ]
         early_mtd = early[early["settlement_date"].between(month_start, today)]["Origination"].sum()
+        wirr_val = weighted_irr(sub_target)
         with col:
-            st.markdown(f"**{am}**")
-            st.metric("Active WA", f"{len(aw)}", f"{fmt_money(aw['ob'].sum())} OB", delta_color="off")
-            st.metric("Suspended WA", f"{len(sw)}", f"{fmt_money(sw['ob'].sum())} OB", delta_color="off")
-            st.metric("MTD Originated", fmt_money(mtd_orig))
-            st.metric("MTD Repaid", fmt_money(mtd_rep))
-            st.metric("Early Repayment MTD", fmt_money(early_mtd))
-            st.metric("WIRR", fmt_irr(weighted_irr(sub_target)))
+            st.markdown(
+                f'<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-top:4px solid {ACCENT_NIKHIL};'
+                f'border-radius:10px;padding:16px 14px;margin-bottom:8px;">'
+                f'<div style="font-family:\'Syne\',sans-serif;font-size:1rem;font-weight:700;color:#0F1F3D;margin-bottom:12px;">'
+                f'{am}</div>'
+                f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+                f'<div style="background:#fff;border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:{POSITIVE}">Active WA</div>'
+                f'<div style="font-family:\'DM Mono\',monospace;font-size:1.2rem;font-weight:600;color:#111827">{len(aw)}</div>'
+                f'<div style="font-size:0.7rem;color:#6B7280">{fmt_money(aw["ob"].sum())} OB</div></div>'
+                f'<div style="background:#fff;border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:{WARNING}">Suspended WA</div>'
+                f'<div style="font-family:\'DM Mono\',monospace;font-size:1.2rem;font-weight:600;color:#111827">{len(sw)}</div>'
+                f'<div style="font-size:0.7rem;color:#6B7280">{fmt_money(sw["ob"].sum())} OB</div></div>'
+                f'<div style="background:#fff;border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:{INDIGO}">MTD Originated</div>'
+                f'<div style="font-family:\'DM Mono\',monospace;font-size:1.1rem;font-weight:600;color:#111827">{fmt_money(mtd_orig)}</div></div>'
+                f'<div style="background:#fff;border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:{POSITIVE}">MTD Repaid</div>'
+                f'<div style="font-family:\'DM Mono\',monospace;font-size:1.1rem;font-weight:600;color:#111827">{fmt_money(mtd_rep)}</div></div>'
+                f'<div style="background:#fff;border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#B45309">Early Repaid MTD</div>'
+                f'<div style="font-family:\'DM Mono\',monospace;font-size:1.1rem;font-weight:600;color:#111827">{fmt_money(early_mtd)}</div></div>'
+                f'<div style="background:#fff;border-radius:8px;padding:10px 12px;">'
+                f'<div style="font-size:0.6rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0F1F3D">WIRR</div>'
+                f'<div style="font-family:\'DM Mono\',monospace;font-size:1.1rem;font-weight:600;color:#111827">{fmt_irr(wirr_val) if wirr_val else "—"}</div></div>'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
 
-    st.markdown("#### AM Status Distribution")
+    section_header("AM Status Distribution", "Account count stacked by type per manager")
     levels = [("Active Workable", POSITIVE), ("Suspended Workable", WARNING), ("Workable >365", "rgba(71,85,105,.55)"), ("NWA", "rgba(71,85,105,.3)")]
     fig = go.Figure()
     first_names = [am.split()[0] for am in visible_ams]
@@ -173,7 +366,7 @@ def render_health(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
     target = in_target(accounts)
     buckets = utilization_buckets_nikhil(target)
 
-    st.markdown("#### Utilization Buckets (in-target accounts)")
+    section_header("Utilization Buckets", "In-target accounts split by utilization band")
     c1, c2 = st.columns([1, 1])
     with c1:
         colors = [MUTED, ACCENT_NIKHIL, INDIGO, POSITIVE]
@@ -200,10 +393,10 @@ def render_health(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
 
     open_inv = invoices[invoices["Stage"].isin(OPEN_STAGES)] if not invoices.empty else invoices
     for title, mask_fn in [
-        ("Overdue (DPD 8-90)", lambda f: (f["dpd"] > 7) & (f["dpd"] <= 90)),
-        ("NPA (DPD >90)", lambda f: f["dpd"] > 90),
+        ("Overdue Invoices (DPD 8-90)", lambda f: (f["dpd"] > 7) & (f["dpd"] <= 90)),
+        ("NPA Invoices (DPD >90)", lambda f: f["dpd"] > 90),
     ]:
-        st.markdown(f"#### {title}")
+        section_header(title)
         section = open_inv[mask_fn(open_inv)].copy() if not open_inv.empty else open_inv
         if section.empty:
             st.caption("No invoices in this band.")
@@ -223,7 +416,7 @@ def render_health(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
                 use_container_width=True, hide_index=True,
             )
 
-    st.markdown("#### Days Since Last Disbursement")
+    section_header("Days Since Last Disbursement", "Workable + Workable >365 accounts sorted by dormancy")
     universe = accounts[accounts["account_type"].isin(IN_TARGET_TYPES | {"Workable >365"})].copy()
     bucket = st.selectbox("Days bucket", ["all", "0-30", "31-60", "61-90", "91-120", "121-150", "151-180", "180+"], key="nik_dsld")
     days = universe["days_since_last"].fillna(-1)
@@ -238,7 +431,7 @@ def render_health(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
 
 # ---------------------------------------------------------------- View D ----
 def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: pd.DataFrame, today: pd.Timestamp) -> None:
-    st.markdown("#### Declining Accounts (repaid > originated in window)")
+    section_header("Declining Accounts", "Accounts where repayments exceeded originations in the window")
     win = st.radio("Window", ["MTD", "QTD", "Custom"], horizontal=True, key="nik_dec_win")
     if win == "Custom":
         d1, d2 = st.columns(2)
@@ -265,7 +458,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
         with st.expander(f"Declining detail — {len(decl)} accounts"):
             st.dataframe(decl.reset_index(names="account_id"), use_container_width=True, hide_index=True)
 
-    st.markdown("#### High Opportunity (headroom + upcoming due)")
+    section_header("High Opportunity", "Headroom + upcoming repayments due in window")
     opp_win = st.radio("Due window", list(WINDOW_LABELS), format_func=WINDOW_LABELS.get, horizontal=True, key="nik_opp_win")
     w_start, w_end = get_window(opp_win, today)
     due = due_by_account(invoices, w_start, w_end)
@@ -276,7 +469,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
     opp = target[target["opportunity"] > 0].sort_values("opportunity", ascending=False)
     show_table(opp, ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "headroom", "due_in_window", "opportunity"], height=360)
 
-    st.markdown("#### Early Repayment Tracking")
+    section_header("Early Repayment Tracking", "Settled invoices paid before due date")
     early = invoices[
         invoices["Stage"].isin(SETTLED)
         & invoices["settlement_date"].notna() & invoices["due_date_of_invoice"].notna()
@@ -291,7 +484,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
             st.dataframe(early[["Buyer", "am", "Invoice ID", "Origination", "settlement_date", "due_date_of_invoice", "days_early"]],
                          use_container_width=True, hide_index=True)
 
-    st.markdown("#### Recovery Collections Detail")
+    section_header("Recovery Collections", "Overdue/NPA invoices with partial principal recovered")
     recovery = invoices[invoices["Stage"].isin(OPEN_STAGES) & (invoices["dpd"] > 7)].copy()
     recovery["recovered"] = (recovery["Origination"] - recovery["Outstanding"]).clip(lower=0)
     recovery = recovery[recovery["recovered"] > 0]
@@ -308,7 +501,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
         st.dataframe(agg, use_container_width=True, hide_index=True)
         st.caption(f"Total recovered: {fmt_money(agg['recovered'].sum())} across {int(agg['invoices'].sum())} invoices")
 
-    st.markdown("#### Reactivation Focus (workable, suspended, dormant ≥180d — sorted by Peak OB)")
+    section_header("Reactivation Focus", "Workable suspended accounts dormant ≥180d — sorted by Peak OB")
     react = accounts[
         (accounts["broad_status"] == "Workable")
         & (accounts["util_status"] == "suspended")
@@ -317,7 +510,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
     show_table(react.sort_values("peak_ob", ascending=False),
                ["company", "am", "util_denom", "ob", "peak_ob", "peak_ob_date", "days_since_last"], height=320)
 
-    st.markdown("#### Alerts — Unassigned CP Accounts")
+    section_header("Alerts — Unassigned CP Accounts", "Active CP accounts with no AM assigned")
     if not master_raw.empty and "type" in master_raw.columns:
         unassigned = master_raw[
             (master_raw["type"].astype(str).str.upper() == "CP")
@@ -337,7 +530,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
 def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Timestamp) -> None:
     target = in_target(accounts).copy()
 
-    st.markdown("#### Repayments Due")
+    section_header("Repayments Due", "Outstanding repayment amounts by collection window")
     cols = st.columns(3)
     dues = {}
     for col, win in zip(cols, ["cw", "cm", "nm"]):
@@ -349,7 +542,7 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
                        format_func=lambda k: WINDOW_LABELS[k], horizontal=True, key="nik_pulse_due")
     target["due_window"] = target["id"].map(dues.get(due_win, pd.Series(dtype=float))).fillna(0)
 
-    st.markdown("#### Workable Accounts")
+    section_header("Workable Accounts", "Full account list with OB trend and disbursement activity")
     s1, s2 = st.columns(2)
     sort_by = s1.radio("Sort by", ["Facility", "OB", "Utilization"], horizontal=True, key="nik_pulse_sort")
     slice_pick = s2.radio("Slice", ["Top 10", "Top 25", "Top 50", "All", "Bottom 25"], horizontal=True, index=2, key="nik_pulse_slice")
@@ -365,7 +558,7 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
     show_table(ordered, ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "utilization_pct",
                          "ob_change_30d", "last_disbursed", "days_since_last"], height=480)
 
-    st.markdown("#### About to Go Inactive (Active WA, ≥120 days since disbursement)")
+    section_header("About to Go Inactive", "Active WA accounts with ≥120 days since last disbursement")
     inactive_soon = accounts[(accounts["account_type"] == "Active Workable") & (accounts["days_since_last"].fillna(0) >= 120)]
     c = st.columns(3)
     c[0].metric("Accounts", f"{len(inactive_soon):,}")
@@ -374,14 +567,14 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
     show_table(inactive_soon.sort_values("days_since_last", ascending=False),
                ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "last_disbursed", "days_since_last"], height=280)
 
-    st.markdown("#### Headroom Opportunity (recently active, <120 days)")
+    section_header("Headroom Opportunity", "Recently active accounts (<120d) with available facility headroom")
     headroom = target[(target["days_since_last"].isna()) | (target["days_since_last"] < 120)].copy()
     headroom["headroom"] = (headroom["util_denom"] - headroom["ob"]).clip(lower=0)
     headroom["peak_gap"] = (headroom["peak_ob"] - headroom["ob"]).clip(lower=0)
     headroom = headroom[headroom["headroom"] > 0].sort_values("headroom", ascending=False)
     show_table(headroom, ["company", "am", "util_denom", "ob", "ob_trend", "utilization_pct", "headroom", "peak_ob", "peak_gap"], height=320)
 
-    st.markdown("#### Repayment Tracker")
+    section_header("Repayment Tracker", "Actual repayments received in selected window")
     rep_win = st.radio("Window", ["WTD", "MTD"], horizontal=True, key="nik_pulse_rep")
     w_start, _ = get_window("cw" if rep_win == "WTD" else "mtd", today)
     repaid = repayments_by_account(invoices, w_start, today)
@@ -393,7 +586,7 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
     c[2].metric("Avg per account", fmt_money(rep_table["repaid"].mean() if len(rep_table) else 0))
     st.dataframe(rep_table[["company", "am", "repaid", "ob"]], use_container_width=True, hide_index=True)
 
-    st.markdown("#### Origination — Month to Date")
+    section_header("Origination — Month to Date", "Accounts with new disbursements this month")
     m_start, _ = get_window("mtd", today)
     orig = originations_by_account(invoices, m_start, today)
     orig_table = _series_table(target, orig, "originated")
@@ -404,14 +597,14 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
     c[2].metric("Avg per account", fmt_money(orig_table["originated"].mean() if len(orig_table) else 0))
     st.dataframe(orig_table[["company", "am", "originated", "ob"]], use_container_width=True, hide_index=True)
 
-    st.markdown("#### OB Drop")
+    section_header("OB Drop vs Baseline", "Accounts where OB has declined vs 30 and 90 days ago")
     d30, d90 = st.columns(2)
     for col, col_name, label in [(d30, "ob_30d", "30 days"), (d90, "ob_90d", "90 days")]:
         drop = target[target[col_name] > target["ob"]].copy()
         drop["drop"] = drop[col_name] - drop["ob"]
         drop["drop_pct"] = drop["drop"] / drop[col_name] * 100
         with col:
-            st.markdown(f"**Drop vs {label} ago** — {fmt_money(drop['drop'].sum())}")
+            section_header(f"Drop vs {label} ago", fmt_money(drop["drop"].sum()))
             st.dataframe(drop.sort_values("drop", ascending=False)[["company", "am", col_name, "ob", "drop", "drop_pct"]],
                          use_container_width=True, hide_index=True, height=300)
 
@@ -424,9 +617,8 @@ def render_peak(accounts: pd.DataFrame, invoices: pd.DataFrame, ob_pivot: pd.Dat
     ids = set(accounts["id"])
     trend = ob_trend(ob_pivot, ids)
 
-    st.markdown("#### OB Trend")
-    st.caption("Invoice-derived OB (advance basis): origination held from advance to settlement. "
-               "Faithful for shape and peaks; levels run ~5-15% above master OB.")
+    section_header("OB Trend", "Invoice-derived OB (advance basis) — faithful for shape and peaks")
+    st.caption("Levels run ~5-15% above master OB.")
     t1, t2 = st.columns(2)
     mode = t1.radio("Mode", ["Portfolio Total", "Per AM"], horizontal=True, key="nik_peak_mode")
     window = t2.radio("Window", ["3M", "6M", "12M", "All history"], horizontal=True, index=2, key="nik_peak_window")
@@ -447,7 +639,7 @@ def render_peak(accounts: pd.DataFrame, invoices: pd.DataFrame, ob_pivot: pd.Dat
     st.plotly_chart(base_layout(fig, "Daily OB"), use_container_width=True)
     st.caption("Historic OB coverage starts 2023-01-01; current file covers May 2026 onward.")
 
-    st.markdown("#### Peak vs Today")
+    section_header("Peak vs Today", "Compare current OB to peak or any custom historical date")
     peak_mode = st.radio("Peak date", ["Auto (max)", "Custom"], horizontal=True, key="nik_peak_pick")
     daily_totals = ob_pivot[[c for c in ob_pivot.columns if c in ids]].sum(axis=1)
     if peak_mode == "Custom":
@@ -504,7 +696,7 @@ def render_peak(accounts: pd.DataFrame, invoices: pd.DataFrame, ob_pivot: pd.Dat
                 f"+{fmt_money(wa.loc[wa['change'] > 0, 'change'].sum())}",
                 f"-{fmt_money(abs(wa.loc[wa['status'].isin(['declined', 'zero']), 'change'].sum()))}", delta_color="off")
 
-    st.markdown("#### Contribution Waterfall (top 40 by |change|)")
+    section_header("Contribution Waterfall", "Top 40 accounts by absolute change from peak")
     moves = change[(change["change"] != 0) & ~((~is_wa) & (change["ob"] > 0))]
     top = moves.reindex(moves["change"].abs().sort_values(ascending=False).index).head(40).sort_values("change")
     bar_colors = ["rgba(71,85,105,.45)" if t not in IN_TARGET_TYPES else (NEGATIVE if v < 0 else POSITIVE)
@@ -513,7 +705,7 @@ def render_peak(accounts: pd.DataFrame, invoices: pd.DataFrame, ob_pivot: pd.Dat
     fig.update_xaxes(tickprefix="$")
     st.plotly_chart(base_layout(fig, "Peak → Today change per account", height=720), use_container_width=True)
 
-    st.markdown("#### Account Detail")
+    section_header("Account Detail", "Filter peak movement by category or status")
     cat = st.selectbox("Filter", ["all", "wa", "nwa", "declined", "grew", "zero", "active0", "npa", "overdue", "suspended"], key="nik_peak_cat")
     detail = change
     if cat == "wa":
@@ -540,11 +732,12 @@ def render_cp_health(accounts_all: pd.DataFrame, invoices_all: pd.DataFrame, tod
 
     fac = cp["total_facility"].sum()
     ob = cp["ob"].sum()
-    c = st.columns(4)
-    c[0].metric("Total CP Accounts", f"{len(cp):,}")
-    c[1].metric("Total CP OB", fmt_money(ob))
-    c[2].metric("Total CP Facility", fmt_money(fac))
-    c[3].metric("CP Utilization", fmt_pct(ob / fac if fac else 0))
+    hero_metric_cards([
+        {"label": "Total CP Accounts", "value": f"{len(cp):,}", "color": "#0F1F3D"},
+        {"label": "Total CP OB", "value": fmt_money(ob), "color": ACCENT_NIKHIL},
+        {"label": "Total CP Facility", "value": fmt_money(fac), "color": INDIGO},
+        {"label": "CP Utilization", "value": fmt_pct(ob / fac if fac else 0), "color": POSITIVE},
+    ], columns=4)
 
     by_partner = (
         cp.groupby("partner")
@@ -587,7 +780,7 @@ def render_cp_health(accounts_all: pd.DataFrame, invoices_all: pd.DataFrame, tod
         fig.update_xaxes(ticksuffix="%")
         st.plotly_chart(base_layout(fig, "Weighted IRR by Partner (green ≥20, amber ≥18)", height=520), use_container_width=True)
 
-    st.markdown("#### Partner Health Scorecard")
+    section_header("Partner Health Scorecard", "Drill into individual partner performance and health scores")
     partner_pick = st.selectbox("Partner", ["All"] + by_partner.index.tolist(), key="nik_cp_partner",
                                 format_func=lambda p: p.replace("_", " "))
     detail = cp if partner_pick == "All" else cp[cp["partner"] == partner_pick]

@@ -55,7 +55,7 @@ inject_visual_system(theme_mode)
 # ---------------------------------------------------------------- Sidebar ----
 with st.sidebar:
 
-    theme_mode = st.radio("Theme Mode", ["Light", "Dark"], key="theme_mode")
+    theme_mode = st.radio("Theme Mode", ["Light", "Dark"], key="theme_mode", horizontal=True)
 
     if "use_sample" not in st.session_state:
         st.session_state["use_sample"] = False

@@ -299,31 +299,35 @@ div[role="radiogroup"] label:has(input:checked) {
   border: 1px solid var(--scf-border-soft);
   border-top: 3px solid var(--accent, var(--scf-accent));
   border-radius: 10px;
-  padding: 14px 16px;
-  min-height: 100px;
-  box-shadow: 0 1px 3px rgba(15,31,61,0.04);
+  padding: 16px 18px;
+  min-height: 108px;
+  box-shadow: 0 2px 8px rgba(15,31,61,0.06);
+  transition: box-shadow 0.18s;
+}
+.scf-kpi:hover {
+  box-shadow: 0 4px 18px rgba(15,31,61,0.10);
 }
 .scf-kpi-label {
   font-family: 'DM Sans', sans-serif;
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--scf-muted);
-  margin-bottom: 5px;
+  color: var(--accent, var(--scf-accent));
+  margin-bottom: 6px;
 }
 .scf-kpi-value {
   font-family: 'DM Mono', ui-monospace, monospace;
-  font-size: 1.38rem;
-  font-weight: 400;
-  color: var(--scf-text);
+  font-size: 1.55rem;
+  font-weight: 500;
+  color: var(--scf-heading);
   line-height: 1.15;
 }
 .scf-kpi-sub {
   font-family: 'DM Sans', sans-serif;
   font-size: 0.72rem;
   color: var(--scf-muted);
-  margin-top: 0.42rem;
+  margin-top: 0.45rem;
 }
 .scf-heat-bar {
   margin-top: 8px;
@@ -335,6 +339,61 @@ div[role="radiogroup"] label:has(input:checked) {
 .scf-heat-fill {
   height: 100%;
   border-radius: 2px;
+}
+
+/* ── Hero KPI card (big dashboard tile) ── */
+.scf-hero {
+  background: var(--scf-card);
+  border-radius: 14px;
+  border: 1px solid var(--scf-border-soft);
+  border-left: 5px solid var(--accent, var(--scf-accent));
+  padding: 20px 22px 18px;
+  min-height: 130px;
+  box-shadow: 0 2px 12px rgba(15,31,61,0.07);
+  transition: box-shadow 0.18s, transform 0.18s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.scf-hero:hover {
+  box-shadow: 0 6px 24px rgba(15,31,61,0.12);
+  transform: translateY(-2px);
+}
+.scf-hero-label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--accent, var(--scf-accent));
+}
+.scf-hero-value {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 2.0rem;
+  font-weight: 600;
+  color: var(--scf-heading);
+  line-height: 1.1;
+}
+.scf-hero-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-top: 4px;
+  width: fit-content;
+}
+.scf-hero-delta-up   { background: #ECFDF5; color: #0D6B52; }
+.scf-hero-delta-down { background: #FEF2F2; color: #991B1B; }
+.scf-hero-delta-flat { background: #F3F4F6; color: #6B7280; }
+.scf-hero-sub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.73rem;
+  color: var(--scf-muted);
+  margin-top: 2px;
 }
 
 /* ── st.metric widget ── */
@@ -680,6 +739,68 @@ def metric_cards(items: list[tuple[str, str, str, str]], columns: int | None = N
         for col, item in zip(cols, items[start : start + columns]):
             label, value, sub, color = item
             col.markdown(metric_card(label, value, sub, color), unsafe_allow_html=True)
+
+
+def hero_metric_card(
+    label: str,
+    value: str,
+    color: str = NAVY,
+    delta_pct: float | None = None,
+    delta_label: str = "vs 30d ago",
+    sub: str = "",
+) -> str:
+    """Large hero card with colored left-border and a MoM delta pill badge."""
+    if delta_pct is not None:
+        if abs(delta_pct) < 0.001:
+            cls = "scf-hero-delta-flat"
+            arrow = "→"
+            txt = f"±0.0% {delta_label}"
+        elif delta_pct > 0:
+            cls = "scf-hero-delta-up"
+            arrow = "▲"
+            txt = f"{arrow} {delta_pct:+.1f}% {delta_label}"
+        else:
+            cls = "scf-hero-delta-down"
+            arrow = "▼"
+            txt = f"{arrow} {delta_pct:+.1f}% {delta_label}"
+        delta_html = f'<div class="scf-hero-delta {cls}">{txt}</div>'
+    else:
+        delta_html = ""
+    sub_html = f'<div class="scf-hero-sub">{sub}</div>' if sub else ""
+    return (
+        f'<div class="scf-hero" style="--accent:{color}">'
+        f'<div class="scf-hero-label">{label}</div>'
+        f'<div class="scf-hero-value">{value}</div>'
+        f'{delta_html}{sub_html}'
+        f'</div>'
+    )
+
+
+def hero_metric_cards(
+    items: list[dict],
+    columns: int | None = None,
+) -> None:
+    """
+    items: list of dicts with keys:
+      label, value, color, delta_pct (optional), delta_label (optional), sub (optional)
+    """
+    if not items:
+        return
+    columns = columns or min(len(items), 5)
+    for start in range(0, len(items), columns):
+        cols = st.columns(columns)
+        for col, item in zip(cols, items[start : start + columns]):
+            col.markdown(
+                hero_metric_card(
+                    label=item["label"],
+                    value=item["value"],
+                    color=item.get("color", NAVY),
+                    delta_pct=item.get("delta_pct"),
+                    delta_label=item.get("delta_label", "vs 30d ago"),
+                    sub=item.get("sub", ""),
+                ),
+                unsafe_allow_html=True,
+            )
 
 
 # ── Helper: status badge ─────────────────────────────────────────────────
