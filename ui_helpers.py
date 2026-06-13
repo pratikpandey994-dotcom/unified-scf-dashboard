@@ -417,10 +417,9 @@ div[data-testid="stHorizontalBlock"] { gap: 0.88rem; }
 
 /* ── DataFrame ── */
 [data-testid="stDataFrame"] {
-  border: 1px solid var(--scf-border-soft) !important;
-  border-radius: 10px !important;
-  overflow: hidden !important;
-  box-shadow: 0 1px 3px rgba(15,31,61,0.04) !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0px !important;
 }
 
 /* ── Buttons ── */
@@ -739,6 +738,7 @@ def data_config() -> dict:
         "total_facility":           st.column_config.NumberColumn("Total Facility",    format="$ %.0f"),
         "util_denom":               st.column_config.NumberColumn("Facility Basis",    format="$ %.0f"),
         "ob":                       st.column_config.NumberColumn("OB",                format="$ %.0f"),
+        "ob_trend":                 st.column_config.LineChartColumn("OB Trend (30d)", y_min=0),
         "ob_30d":                   st.column_config.NumberColumn("OB 30d Ago",        format="$ %.0f"),
         "ob_90d":                   st.column_config.NumberColumn("OB 90d Ago",        format="$ %.0f"),
         "peak_ob":                  st.column_config.NumberColumn("Peak OB",           format="$ %.0f"),

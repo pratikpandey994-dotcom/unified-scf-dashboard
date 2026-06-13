@@ -97,7 +97,7 @@ def render_inventory(accounts: pd.DataFrame) -> None:
     c[3].metric("Total Facility", fmt_money(accounts["facility"].sum()))
     c[4].metric("Total OB", fmt_money(accounts["ob"].sum()))
     show_table(accounts.sort_values("facility", ascending=False),
-               ["company", "am", "facility", "ob", "mtd_repayments", "net_ob", "utilization_pct", "raw_status"], height=520)
+               ["company", "am", "facility", "ob", "ob_trend", "mtd_repayments", "net_ob", "utilization_pct", "raw_status"], height=520)
 
 
 def render_utilization(accounts: pd.DataFrame, cfg) -> None:
@@ -128,7 +128,7 @@ def render_utilization(accounts: pd.DataFrame, cfg) -> None:
         st.plotly_chart(base_layout(fig, "AM-wise Avg Utilization"), use_container_width=True)
 
     show_table(funded.sort_values("utilization", ascending=False),
-               ["company", "am", "facility", "ob", "utilization_pct", "raw_status"], height=420)
+               ["company", "am", "facility", "ob", "ob_trend", "utilization_pct", "raw_status"], height=420)
 
 
 def render_zero_ob(accounts: pd.DataFrame) -> None:
@@ -142,7 +142,7 @@ def render_zero_ob(accounts: pd.DataFrame) -> None:
     c[3].metric("Total Dormant Facility", fmt_money(zero_rows["facility"].sum()))
     st.caption("🔴 High Facility + Zero OB = priority flag · 🟡 Recently active but now dormant")
     show_table(zero_rows.sort_values("facility", ascending=False),
-               ["company", "am", "facility", "ob", "last_disbursed", "days_since_last", "ob_30d", "raw_status"], height=460)
+               ["company", "am", "facility", "ob", "ob_trend", "last_disbursed", "days_since_last", "ob_30d", "raw_status"], height=460)
 
 
 def render_workable_inactive(accounts_team: pd.DataFrame, selected_am: str) -> None:
@@ -158,7 +158,7 @@ def render_workable_inactive(accounts_team: pd.DataFrame, selected_am: str) -> N
     c[1].metric("Total Facility Available", fmt_money(inactive["facility"].sum()))
     c[2].metric("Total Gap to 75%", fmt_money(inactive["gap_to_75"].sum()))
     show_table(inactive.sort_values("facility", ascending=False),
-               ["company", "am", "facility", "last_disbursed", "months_since_last", "gap_to_75", "raw_status"], height=440)
+               ["company", "am", "facility", "ob_trend", "last_disbursed", "months_since_last", "gap_to_75", "raw_status"], height=440)
 
 
 def render_repayments(accounts: pd.DataFrame, cfg, selected_am: str) -> None:
@@ -171,7 +171,7 @@ def render_repayments(accounts: pd.DataFrame, cfg, selected_am: str) -> None:
             continue
         amt = accounts.loc[accounts["am"] == am, "mtd_repayments"].sum()
         cards[2 + idx].metric(f"{am.split()[0]} Repayments", fmt_money(amt))
-    show_table(with_repay, ["company", "am", "ob_30d", "mtd_repayments", "ob", "net_ob"], height=440)
+    show_table(with_repay, ["company", "am", "ob_30d", "ob_trend", "mtd_repayments", "ob", "net_ob"], height=440)
 
 
 def render_ob_dent(accounts: pd.DataFrame, ob_pivot: pd.DataFrame, accounts_team: pd.DataFrame) -> None:
@@ -197,7 +197,7 @@ def render_ob_dent(accounts: pd.DataFrame, ob_pivot: pd.DataFrame, accounts_team
         st.plotly_chart(base_layout(fig, "Portfolio OB Movement — 180 Day Window"), use_container_width=True)
     st.caption("🎯 Opportunity flag: OB dent >25% or >$100K = recovery conversation")
     show_table(valid.sort_values("ob_dent_30d", ascending=False),
-               ["company", "am", "ob_30d", "ob", "ob_dent_30d", "ob_dent_30d_pct_display", "raw_status"], height=420)
+               ["company", "am", "ob_30d", "ob", "ob_trend", "ob_dent_30d", "ob_dent_30d_pct_display", "raw_status"], height=420)
 
 
 def render_am_performance(accounts_team: pd.DataFrame, invoices_team: pd.DataFrame, cfg) -> None:
@@ -239,7 +239,7 @@ def render_75_engine(accounts: pd.DataFrame) -> None:
     c[2].metric("Avg Current Utilization", fmt_pct(opps["utilization"].mean() if len(opps) else 0))
     st.info("💡 Formula: Gap to 75% = (Facility × 75%) − Current OB")
     show_table(opps.sort_values("gap_to_75", ascending=False),
-               ["company", "am", "facility", "ob", "target_ob_75", "utilization_pct", "gap_to_75", "last_disbursed", "raw_status"],
+               ["company", "am", "facility", "ob", "ob_trend", "gap_to_75"],
                height=460)
 
 
@@ -250,20 +250,20 @@ def render_opportunity_views(accounts_team: pd.DataFrame, selected_am: str, cfg)
     st.caption("Largest dollar gap to 75% across the whole division (ignores filters, like the original).")
     top_gap = accounts_team[(accounts_team["gap_to_75"] > 0) & is_workable(accounts_team)]
     show_table(top_gap.sort_values("gap_to_75", ascending=False).head(20),
-               ["company", "am", "facility", "ob", "utilization_pct", "gap_to_75"])
+               ["company", "am", "facility", "ob", "ob_trend", "gap_to_75"])
 
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("#### ⚠️ Not Funded in 90+ Days")
         dormant = by_am[by_am["days_since_last"].fillna(0) >= 90]
         show_table(dormant.sort_values("days_since_last", ascending=False),
-                   ["company", "am", "facility", "ob", "days_since_last", "raw_status"], height=380)
+                   ["company", "am", "facility", "ob_trend", "last_disbursed", "days_since_last"], height=380)
     with c2:
         st.markdown("#### 🎯 High Facility / Low Utilization")
         st.caption("Facility ≥ $500K with utilization < 30%")
         big_low = by_am[(by_am["facility"] >= 500_000) & (by_am["utilization"] < 0.30)]
         show_table(big_low.sort_values("facility", ascending=False),
-                   ["company", "am", "facility", "ob", "utilization_pct", "gap_to_75"], height=380)
+                   ["company", "am", "facility", "ob_trend", "utilization_pct"], height=380)
 
     st.markdown("#### 📊 AM Opportunity Ranking")
     ranking = []

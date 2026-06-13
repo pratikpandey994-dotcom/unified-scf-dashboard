@@ -147,6 +147,11 @@ def build_portfolio(
         accounts[["peak_ob", "avg_ob", "ob_30d", "ob_90d"]] = 0.0
         accounts["peak_ob_date"] = pd.NaT
 
+    if not ob_pivot.empty:
+        accounts["ob_trend"] = accounts["id"].map(lambda uid: ob_pivot[uid].tail(30).tolist() if uid in ob_pivot.columns else [0.0]*30)
+    else:
+        accounts["ob_trend"] = accounts["id"].map(lambda _: [0.0]*30)
+
     accounts["ob_dent_30d"] = accounts["ob_30d"] - accounts["ob"]
     accounts["ob_dent_90d"] = accounts["ob_90d"] - accounts["ob"]
     accounts["ob_dent_30d_pct"] = np.where(accounts["ob_30d"] > 0, accounts["ob_dent_30d"] / accounts["ob_30d"], 0)

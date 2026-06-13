@@ -196,7 +196,7 @@ def render_health(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
     if pick != "All":
         detail = detail[detail["bucket"] == pick]
     show_table(detail.sort_values("ob", ascending=False),
-               ["company", "am", "account_type", "util_denom", "ob", "utilization_pct", "irr"], height=360)
+               ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "utilization_pct", "irr"], height=360)
 
     open_inv = invoices[invoices["Stage"].isin(OPEN_STAGES)] if not invoices.empty else invoices
     for title, mask_fn in [
@@ -233,7 +233,7 @@ def render_health(accounts: pd.DataFrame, invoices: pd.DataFrame) -> None:
         lo, hi = bucket.split("-")
         universe = universe[days.between(int(lo), int(hi))]
     show_table(universe.sort_values("days_since_last", ascending=False),
-               ["company", "am", "account_type", "util_denom", "ob", "last_disbursed", "days_since_last"], height=360)
+               ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "last_disbursed", "days_since_last"], height=360)
 
 
 # ---------------------------------------------------------------- View D ----
@@ -274,7 +274,7 @@ def render_actions(accounts: pd.DataFrame, invoices: pd.DataFrame, master_raw: p
     target["due_in_window"] = target["id"].map(due).fillna(0)
     target["opportunity"] = target["headroom"] + target["due_in_window"]
     opp = target[target["opportunity"] > 0].sort_values("opportunity", ascending=False)
-    show_table(opp, ["company", "am", "account_type", "util_denom", "ob", "headroom", "due_in_window", "opportunity"], height=360)
+    show_table(opp, ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "headroom", "due_in_window", "opportunity"], height=360)
 
     st.markdown("#### Early Repayment Tracking")
     early = invoices[
@@ -361,8 +361,9 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
         ordered = ordered.tail(int(slice_pick.split()[1])).iloc[::-1]
     ordered = ordered.copy()
     ordered["ob_chg_30d"] = ordered["ob"] - ordered["ob_30d"]
-    show_table(ordered, ["company", "am", "account_type", "util_denom", "ob", "utilization_pct",
-                         "ob_chg_30d", "due_window", "last_disbursed", "peak_ob", "peak_ob_date", "avg_ob"], height=480)
+    ordered["ob_change_30d"] = ordered["ob_chg_30d"]
+    show_table(ordered, ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "utilization_pct",
+                         "ob_change_30d", "last_disbursed", "days_since_last"], height=480)
 
     st.markdown("#### About to Go Inactive (Active WA, ≥120 days since disbursement)")
     inactive_soon = accounts[(accounts["account_type"] == "Active Workable") & (accounts["days_since_last"].fillna(0) >= 120)]
@@ -371,14 +372,14 @@ def render_pulse(accounts: pd.DataFrame, invoices: pd.DataFrame, today: pd.Times
     c[1].metric("OB at risk", fmt_money(inactive_soon["ob"].sum()))
     c[2].metric("Facility at risk", fmt_money(inactive_soon["util_denom"].sum()))
     show_table(inactive_soon.sort_values("days_since_last", ascending=False),
-               ["company", "am", "util_denom", "ob", "utilization_pct", "last_disbursed", "days_since_last"], height=280)
+               ["company", "am", "account_type", "util_denom", "ob", "ob_trend", "last_disbursed", "days_since_last"], height=280)
 
     st.markdown("#### Headroom Opportunity (recently active, <120 days)")
     headroom = target[(target["days_since_last"].isna()) | (target["days_since_last"] < 120)].copy()
     headroom["headroom"] = (headroom["util_denom"] - headroom["ob"]).clip(lower=0)
     headroom["peak_gap"] = (headroom["peak_ob"] - headroom["ob"]).clip(lower=0)
     headroom = headroom[headroom["headroom"] > 0].sort_values("headroom", ascending=False)
-    show_table(headroom, ["company", "am", "util_denom", "ob", "utilization_pct", "headroom", "peak_ob", "peak_gap"], height=320)
+    show_table(headroom, ["company", "am", "util_denom", "ob", "ob_trend", "utilization_pct", "headroom", "peak_ob", "peak_gap"], height=320)
 
     st.markdown("#### Repayment Tracker")
     rep_win = st.radio("Window", ["WTD", "MTD"], horizontal=True, key="nik_pulse_rep")
@@ -729,7 +730,7 @@ def render_portfolio(accounts: pd.DataFrame, invoices: pd.DataFrame, invoices_te
         if pq_filter != "all":
             pq = pq[pq["quality"] == pq_filter]
         show_table(pq.sort_values("ob", ascending=False),
-                   ["company", "am", "account_type", "quality", "util_denom", "ob", "utilization_pct", "irr"], height=520)
+                   ["company", "am", "account_type", "quality", "util_denom", "ob", "ob_trend", "utilization_pct", "irr"], height=520)
 
     section_header("Weighted IRR")
     thresh = st.number_input("Only accounts with OB >=", min_value=0, step=1000, value=0, key="nik_irr_thresh")

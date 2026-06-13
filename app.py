@@ -47,12 +47,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Theme mode selectbox/radio defined in sidebar
 theme_mode = st.session_state.get("theme_mode", "Light")
 inject_visual_system(theme_mode)
 
 
 # ---------------------------------------------------------------- Sidebar ----
 with st.sidebar:
+
+    theme_mode = st.radio("Theme Mode", ["Light", "Dark"], key="theme_mode")
 
     if "use_sample" not in st.session_state:
         st.session_state["use_sample"] = False
@@ -116,6 +119,7 @@ account_type_options = sorted(team_accounts["account_type"].dropna().unique().to
 raw_status_options = sorted(team_accounts["raw_status"].dropna().astype(str).unique().tolist())
 
 with st.sidebar:
+    selected_am = st.selectbox("Account Manager", am_options, key=f"{team_name}_am")
     st.divider()
     st.markdown("""
         <h3 style='margin-top: -10px !important; margin-bottom: 0 !important;'>Custom Filters</h3>
@@ -150,6 +154,10 @@ for col_name, selected_values in view2_filter_values.items():
     if selected_values:
         invoices = invoices[invoices[col_name].astype(str).isin(selected_values)]
 
+if selected_am != "All":
+    accounts = accounts[accounts["am"] == selected_am]
+    invoices = invoices[invoices["account_id"].isin(set(accounts["id"]))]
+
 if accounts.empty:
     st.warning("No accounts match the current filter set.")
     st.stop()
@@ -159,56 +167,72 @@ if accounts.empty:
 if team_name == "Team Nikhil":
     st.caption("CP pod · Utilization = Facility + Overdraft")
     tabs = st.tabs([
-        "Overview", "Portfolio Quality", "Team", "Risk & Health",
-        "Collections", "Account Pulse", "Peak Movement", "CP Health", "Tracker", "Insights",
+        "Portfolio Snapshot",
+        "Balance & Utilization",
+        "Account Managers",
+        "Risk & Collections",
+        "Account Detail & Tracker",
     ])
     with tabs[0]:
         render_snapshot(accounts, invoices)
     with tabs[1]:
-        render_portfolio(accounts, invoices, team_invoices, ob_pivot, today, cfg)
+        st.markdown("### Peak Movement")
+        render_peak(accounts, invoices, ob_pivot, today)
     with tabs[2]:
         render_team(accounts, invoices, today, cfg)
     with tabs[3]:
-        render_health(accounts, invoices)
+        sub_tabs = st.tabs(["Risk Exposure (Portfolio Quality)", "Utilization & Stuck Invoices", "Dormancy & Action Lists", "CP Partner Health"])
+        with sub_tabs[0]:
+            render_portfolio(accounts, invoices, team_invoices, ob_pivot, today, cfg)
+        with sub_tabs[1]:
+            render_health(accounts, invoices)
+        with sub_tabs[2]:
+            render_actions(accounts, invoices, raw["master"], today)
+        with sub_tabs[3]:
+            render_cp_health(accounts_all, invoices_all, today)
     with tabs[4]:
-        render_actions(accounts, invoices, raw["master"], today)
-    with tabs[5]:
-        render_pulse(accounts, invoices, today)
-    with tabs[6]:
-        render_peak(accounts, invoices, ob_pivot, today)
-    with tabs[7]:
-        render_cp_health(accounts_all, invoices_all, today)
-    with tabs[8]:
-        render_tracker(accounts, invoices, today, cfg)
-    with tabs[9]:
-        render_insights(accounts, invoices, today, cfg)
+        sub_tabs = st.tabs(["Priority Tracker", "Account Pulse", "Shared Insights"])
+        with sub_tabs[0]:
+            render_tracker(accounts, invoices, today, cfg)
+        with sub_tabs[1]:
+            render_pulse(accounts, invoices, today)
+        with sub_tabs[2]:
+            render_insights(accounts, invoices, today, cfg)
 
 else:
     st.caption("Direct sales · Utilization = Facility only")
     tabs = st.tabs([
-        "Overview", "Inventory", "Utilization", "Zero OB",
-        "Workable Inactive", "Repayments", "OB Dent",
-        "AM Performance", "75% Engine", "Opportunity", "Insights",
+        "Portfolio Snapshot",
+        "Balance & Utilization",
+        "Account Managers",
+        "Risk & Collections",
+        "Account Detail & Tracker",
     ])
     with tabs[0]:
         render_executive(accounts, team_accounts, team_invoices, ob_pivot, cfg)
     with tabs[1]:
-        render_inventory(accounts)
+        sub_tabs = st.tabs(["Balance & Utilization", "75% Engine Opportunities", "Account Inventory", "Zero OB Accounts"])
+        with sub_tabs[0]:
+            render_utilization(accounts, cfg)
+        with sub_tabs[1]:
+            render_75_engine(accounts)
+        with sub_tabs[2]:
+            render_inventory(accounts)
+        with sub_tabs[3]:
+            render_zero_ob(accounts)
     with tabs[2]:
-        render_utilization(accounts, cfg)
-    with tabs[3]:
-        render_zero_ob(accounts)
-    with tabs[4]:
-        render_workable_inactive(team_accounts, selected_am)
-    with tabs[5]:
-        render_repayments(accounts, cfg, selected_am)
-    with tabs[6]:
-        render_ob_dent(accounts, ob_pivot, team_accounts)
-    with tabs[7]:
         render_am_performance(team_accounts, team_invoices, cfg)
-    with tabs[8]:
-        render_75_engine(accounts)
-    with tabs[9]:
-        render_opportunity_views(team_accounts, selected_am, cfg)
-    with tabs[10]:
-        render_insights(accounts, invoices, today, cfg)
+    with tabs[3]:
+        sub_tabs = st.tabs(["Repayments", "OB Dent (30d Reductions)"])
+        with sub_tabs[0]:
+            render_repayments(accounts, cfg, selected_am)
+        with sub_tabs[1]:
+            render_ob_dent(accounts, ob_pivot, team_accounts)
+    with tabs[4]:
+        sub_tabs = st.tabs(["High Opportunity Queue & Zero OB", "Workable Inactive", "Shared Insights"])
+        with sub_tabs[0]:
+            render_opportunity_views(team_accounts, selected_am, cfg)
+        with sub_tabs[1]:
+            render_workable_inactive(team_accounts, selected_am)
+        with sub_tabs[2]:
+            render_insights(accounts, invoices, today, cfg)
