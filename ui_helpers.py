@@ -145,8 +145,9 @@ html, body, [data-testid="stAppViewContainer"] {
   color: var(--scf-text);
 }
 .block-container, [data-testid="stMainBlockContainer"] {
-  max-width: 1440px;
-  padding: 1.8rem 2rem 3rem;
+  max-width: 1580px !important;
+  padding-top: 2rem !important;
+  padding-bottom: 3rem !important;
 }
 
 /* ── Typography ── */
