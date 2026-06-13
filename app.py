@@ -126,20 +126,6 @@ account_type_options = sorted(team_accounts["account_type"].dropna().unique().to
 raw_status_options = sorted(team_accounts["raw_status"].dropna().astype(str).unique().tolist())
 
 with st.sidebar:
-    st.header("Filters")
-    selected_am = st.selectbox(
-        "Account manager",
-        am_options,
-        format_func=lambda value: "All account managers" if value == "All" else value,
-        key=f"{team_name}_am",
-    )
-    selected_account_types = st.multiselect(
-        "Account type", account_type_options, default=[], key=f"{team_name}_account_types"
-    )
-    selected_raw_statuses = st.multiselect(
-        "Raw status", raw_status_options, default=[], key=f"{team_name}_raw_statuses"
-    )
-
     st.divider()
     st.header("Custom Filters")
     st.markdown("**Masterdata**")
@@ -160,7 +146,7 @@ with st.sidebar:
             options = sorted(team_invoices[col_name].dropna().astype(str).unique().tolist())
             view2_filter_values[col_name] = st.multiselect(col_name, options, default=[], key=f"{team_name}_{col_name}_invoice")
 
-accounts = apply_filters(team_accounts, selected_am, selected_account_types, selected_raw_statuses)
+accounts = team_accounts.copy()
 
 for col_name, selected_values in account_filter_values.items():
     if selected_values:
