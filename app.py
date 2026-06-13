@@ -44,7 +44,7 @@ st.set_page_config(
     page_title="Drip SCF Leader",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 theme_mode = st.session_state.get("theme_mode", "Light")
