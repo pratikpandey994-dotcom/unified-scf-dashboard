@@ -99,15 +99,7 @@ st.session_state["_window_map"] = {
 
 
 # ---------------------------------------------------------------- Header ----
-_date_str = f"{today_value.strftime('%b')} {today_value.day}, {today_value.year}"
-st.markdown(
-    f'<div class="scf-page-header">'
-    f'<div><span class="scf-page-title">Drip SCF</span>'
-    f'<span class="scf-page-tag">Leader Intelligence</span></div>'
-    f'<span class="scf-page-date">{_date_str}</span>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
+st.title("Unified SCF Dashboard")
 
 team_name = st.radio("View", list(TEAMS.keys()), horizontal=True, key="team_name")
 cfg = TEAMS[team_name]
